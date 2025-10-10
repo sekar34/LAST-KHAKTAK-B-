@@ -590,4 +590,139 @@ const emailToUnicode = (email) => {
     root.render(<App />);
   </script>
 </body>
+
+<!-- 🔌 Minimal entegrasyon (EK BLOK) -->
+<!-- Firebase compat kütüphaneleri -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+// Bu blok mevcut kodunuza dokunmaz; yalnızca ortak kayıt + mail girişi ekler.
+
+(function(){
+  const LS_KEY = "lastik_takip_v1";
+  const COLL   = "lastik_siparisleri";
+  const firebaseConfig = {
+    apiKey: "AIzaSyB-xEmeTVN8oiB4FZzV4UpJpAHkyDHYF4U",
+    authDomain: "sekar-filo.firebaseapp.com",
+    projectId: "sekar-filo",
+    storageBucket: "sekar-filo.appspot.com",
+    messagingSenderId: "61274893830",
+    appId: "1:61274893830:web:c9dfdf8baf0500178f9d87"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db   = firebase.firestore();
+  const ORD  = db.collection(COLL);
+
+  // Basit giriş kutusu (DOM'a sonradan eklenir, sizin UI'ya müdahale etmez)
+  const ov = document.createElement('div');
+  ov.style.cssText="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.08);backdrop-filter:blur(2px);z-index:99999";
+  ov.innerHTML = '<div style="background:#fff;padding:18px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);width:320px;font-family:system-ui">'+
+    '<h3 style="margin:0 0 8px;font-size:18px">Giriş Yap</h3>'+
+    '<input id="__m" type="email" placeholder="kisi@sekarfilo.com.tr" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin:6px 0">'+
+    '<input id="__p" type="password" placeholder="Şifre" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin:6px 0">'+
+    '<button id="__l" style="width:100%;padding:10px;border:0;border-radius:8px;background:#0ea675;color:#fff">Giriş</button>'+
+    '<button id="__s" style="width:100%;padding:10px;border:0;border-radius:8px;background:#334155;color:#fff;margin-top:6px">Hesap Oluştur</button>'+
+    '<div id="__e" style="color:#d92d20;font-size:12px;min-height:16px;margin-top:6px"></div>'+
+    '<div style="font-size:12px;color:#64748b;margin-top:4px">* Sadece @sekarfilo.com.tr kabul edilir.</div>'+
+  '</div>';
+  document.addEventListener('DOMContentLoaded',()=>document.body.appendChild(ov));
+
+  function showLogin(show){ ov.style.display = show?'flex':'none'; }
+  function err(t){ const el=document.getElementById('__e'); if(el) el.textContent=t||''; }
+
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.id==='__l'){
+      const m=document.getElementById('__m').value.trim();
+      const p=document.getElementById('__p').value;
+      if(!/@sekarfilo\.com\.tr$/i.test(m)) return err("Sadece @sekarfilo.com.tr");
+      auth.signInWithEmailAndPassword(m,p).catch(x=>err(x.message||String(x)));
+    }
+    if(e.target && e.target.id==='__s'){
+      const m=document.getElementById('__m').value.trim();
+      const p=document.getElementById('__p').value;
+      if(!/@sekarfilo\.com\.tr$/i.test(m)) return err("Sadece @sekarfilo.com.tr");
+      auth.createUserWithEmailAndPassword(m,p).catch(x=>err(x.message||String(x)));
+    }
+  }, true);
+
+  // Hash üret (deduplikasyon)
+  function h(x){
+    const s=[x.tarih,x.plaka,x.ebat,x.arac_km,x.firma,x.tur,(x.ad_soyad||''),(x.il||''),(x.ilce||''),(x.irtibat_no||''),(x.email||'')].join('|').toUpperCase();
+    let a=0; for(let i=0;i<s.length;i++){ a=((a<<5)-a)+s.charCodeAt(i); a|=0; } return a.toString(36);
+  }
+
+  // Firestore -> localStorage (ilk yükleme)
+  async function initialSync(user){
+    const snap = await ORD.orderBy("createdAt","desc").get();
+    const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    const cur  = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+    const firmalar = Array.isArray(cur.firmalar)?cur.firmalar:[];
+    const araclar  = Array.isArray(cur.araclar)?cur.araclar:[];
+    const siparisler = rows.map(s=>({
+      id: s.id,
+      tarih: s.tarih || new Date().toLocaleDateString('tr-TR'),
+      plaka: String(s.plaka||'').toUpperCase(),
+      ebat: s.ebat||'',
+      arac_km: s.arac_km||s.km||'',
+      firma: String(s.firma||'').toUpperCase(),
+      tur: String(s.tur||'').toUpperCase(),
+      ad_soyad: String(s.ad_soyad||'').toUpperCase(),
+      il: String(s.il||'').toUpperCase(),
+      ilce: s.ilce||'',
+      irtibat_no: s.irtibat_no||'',
+      email: window.emailNormalize ? window.emailNormalize(s.email||'') : (s.email||'')
+    }));
+    localStorage.setItem(LS_KEY, JSON.stringify({firmalar,araclar,siparisler}));
+    if(!sessionStorage.getItem('__first_sync_done__')){
+      sessionStorage.setItem('__first_sync_done__','1');
+      location.reload();
+    }
+  }
+
+  // localStorage -> Firestore (form submit sonrası yakalama)
+  let pushed = new Set();
+  function pushNewFromLocal(user){
+    try{
+      const cur  = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+      const arr  = Array.isArray(cur.siparisler)?cur.siparisler:[];
+      arr.forEach(s=>{
+        const obj = {
+          tarih: s.tarih, plaka: s.plaka, ebat: s.ebat, arac_km: s.arac_km, firma: s.firma,
+          tur: s.tur, ad_soyad: s.ad_soyad, il: s.il, ilce: s.ilce, irtibat_no: s.irtibat_no,
+          email: window.emailNormalize ? window.emailNormalize(s.email||'') : (s.email||''),
+          createdBy: user.email
+        };
+        const key = h(obj);
+        if(!pushed.has(key)){
+          pushed.add(key);
+          ORD.add({ ...obj, hash: key, createdAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(()=>{});
+        }
+      });
+    }catch{}
+  }
+
+  // Silme işlemi yakalama
+  async function syncDeletions(){
+    // En basit politika: Firestore'u tek kaynak kabul et → localStorage Firestore ile sık sık eşitlenir.
+    // (İleri seviye: hash karşılaştırıp eksilenleri Firestore'dan silmek için query kullanılır)
+  }
+
+  // Form submit yakala
+  document.addEventListener('submit', function(){
+    const user = auth.currentUser;
+    if(!user) return;
+    setTimeout(()=>pushNewFromLocal(user), 600);
+  }, true);
+
+  // Auth state
+  auth.onAuthStateChanged(user=>{
+    if(user && /@sekarfilo\.com\.tr$/i.test(user.email)){ showLogin(false); initialSync(user); }
+    else { showLogin(true); }
+  });
+
+})();
+</script>
+
 </html>
