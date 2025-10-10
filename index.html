@@ -1,4 +1,6 @@
 <!doctype html>
+
+
 <html lang="tr">
 <head>
 <script>
@@ -175,11 +177,11 @@ const emailToUnicode = (email) => {
       const [sAracKm,setSAracKm]=useState("");
       const [sFirma,setSFirma]=useState(""); // lastik firması (manuel)
       const [sTur,setSTur]=useState("Yaz");
-      const [sAdSoyad,setSAdSoyad]=useState("");
-      const [sIl,setSIl]=useState("");
-      const [sIlce,setSIlce]=useState("");
-      const [sIrtibat,setSIrtibat]=useState("");
-      const [sEmail,setSEmail]=useState("");
+        const [sAdSoyad,setSAdSoyad]=useState("");
+        const [sIl,setSIl]=useState("");
+        const [sIlce,setSIlce]=useState("");
+        const [sIrtibat,setSIrtibat]=useState("");
+        const [sEmail,setSEmail]=useState("");
 
       // Ön izleme araması (plaka)
       const [sorguPlaka,setSorguPlaka]=useState("");
@@ -588,11 +590,14 @@ const emailToUnicode = (email) => {
     root.render(<App />);
   </script>
 
-  <!-- 🔒 Ortak kayıt için: Firebase Auth (E-posta/Şifre) + Firestore senkron -->
+  <!-- 🔒 Ortak kayıtlar için Firebase Auth + Firestore canlı senkron -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore, collection, getDocs, setDoc, doc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import {
+      getFirestore, collection, doc, setDoc, deleteDoc,
+      serverTimestamp, query, orderBy, onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     const config = {
       apiKey: "AIzaSyB-xEmeTVN8oiB4FZzV4UpJpAHkyDHYF4U",
@@ -602,12 +607,14 @@ const emailToUnicode = (email) => {
       messagingSenderId: "61274893830",
       appId: "1:61274893830:web:c9dfdf8baf0500178f9d87"
     };
-    const LS_KEY = "lastik_takip_v1";
+
     const app = initializeApp(config);
     const auth = getAuth(app);
-    const db = getFirestore(app);
+    const db   = getFirestore(app);
 
-    // Basit giriş penceresi (overlay)
+    const LS_KEY = "lastik_takip_v1";
+
+    // Basit modal login
     const ov = document.createElement("div");
     ov.style.cssText = "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:9999";
     ov.innerHTML = `<div style="background:#fff;padding:20px;border-radius:10px;width:320px;font:14px system-ui">
@@ -620,42 +627,91 @@ const emailToUnicode = (email) => {
     document.body.appendChild(ov);
 
     document.getElementById("lg").onclick = async () => {
-      const email = document.getElementById("em").value.trim();
-      const pw = document.getElementById("pw").value;
-      try { await signInWithEmailAndPassword(auth, email, pw); }
-      catch(e){ document.getElementById("er").textContent = e.message; }
+      try {
+        await signInWithEmailAndPassword(auth,
+          document.getElementById("em").value.trim(),
+          document.getElementById("pw").value
+        );
+      } catch(e){ document.getElementById("er").textContent = e.message; }
     };
 
     onAuthStateChanged(auth, async (user) => {
       if (!user) return;
       ov.remove();
 
-      // Firestore -> localStorage (ilk eşitleme)
-      try {
-        const snap = await getDocs(query(collection(db,"lastik_siparisleri"), orderBy("createdAt","desc")));
-        const cloudRows = snap.docs.map(d=>d.data());
-        const cur = (()=>{ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"{}"); }catch{ return {}; } })();
-        const merged = { firmalar: cur.firmalar||[], araclar: cur.araclar||[], siparisler: cur.siparisler||[] };
-        const seen = new Set(merged.siparisler.map(s=>s.id));
-        cloudRows.forEach(r => { if(r && r.id && !seen.has(r.id)) merged.siparisler.push(r); });
-        localStorage.setItem(LS_KEY, JSON.stringify(merged));
-        if (!sessionStorage.getItem("ls_boot_done")) { sessionStorage.setItem("ls_boot_done","1"); location.reload(); }
-      } catch(e){ console.warn("Buluttan okuma:", e); }
+      const col = collection(db, "lastik_siparisleri");
 
-      // localStorage -> Firestore (yeni/degisenleri push)
-      async function push() {
-        let data; try{ data = JSON.parse(localStorage.getItem(LS_KEY)||"{}"); }catch{ data = {}; }
-        const list = Array.isArray(data.siparisler) ? data.siparisler : [];
-        for (const s of list) {
-          if (!s.id) continue;
-          const safe = { ...s, email: (window.emailNormalize ? window.emailNormalize(s.email||"") : (s.email||"")), createdAt: serverTimestamp() };
-          try { await setDoc(doc(db,"lastik_siparisleri", String(s.id)), safe, { merge:true }); }
-          catch(e){ console.warn("Buluta yazma:", e); }
+      // CANLI dinle
+      onSnapshot(query(col, orderBy("createdAt","desc")), (snap) => {
+        const cloud = snap.docs.map(d => d.data());
+        let current;
+        try{ current = JSON.parse(localStorage.getItem(LS_KEY)||"{}"); }catch{ current = {}; }
+        const merged = {
+          firmalar: current.firmalar || [],
+          araclar:   current.araclar   || [],
+          siparisler: Array.isArray(cloud) ? cloud : []
+        };
+        localStorage.setItem(LS_KEY, JSON.stringify(merged));
+        if (!sessionStorage.getItem("ls_boot_done")) {
+          sessionStorage.setItem("ls_boot_done","1");
+          location.reload();
+        } else {
+          window.dispatchEvent(new StorageEvent('storage', { key: LS_KEY }));
         }
-      }
-      push();
-      window.addEventListener("storage", (e)=>{ if(e.key===LS_KEY) push(); });
-      setInterval(push, 2000);
+      });
+
+      // Yerel değişiklikleri buluta yaz
+      let lastJson = localStorage.getItem(LS_KEY) || "{}";
+      setInterval(async () => {
+        const nowJson = localStorage.getItem(LS_KEY) || "{}";
+        if (nowJson === lastJson) return;
+        lastJson = nowJson;
+
+        let data; try{ data = JSON.parse(nowJson); }catch{ data = {}; }
+        const list = Array.isArray(data.siparisler) ? data.siparisler : [];
+
+        for (const s of list) {
+          if (!s?.id) continue;
+          const safe = {
+            ...s,
+            email: (window.emailNormalize ? window.emailNormalize(s.email||"") : (s.email||"")),
+            createdAt: s.createdAt || serverTimestamp(),
+          };
+          try { await setDoc(doc(db,"lastik_siparisleri", String(s.id)), safe, { merge:true }); }
+          catch(e){ console.warn("setDoc hata:", e); }
+        }
+
+        const delRaw = localStorage.getItem("__deleted_ids") || "[]";
+        let delIds; try{ delIds = JSON.parse(delRaw); }catch{ delIds = []; }
+        if (Array.isArray(delIds) && delIds.length){
+          for (const id of delIds) {
+            try { await deleteDoc(doc(db,"lastik_siparisleri", String(id))); }
+            catch(e){ console.warn("deleteDoc hata:", e); }
+          }
+          localStorage.setItem("__deleted_ids","[]");
+        }
+      }, 500);
+
+      // Silinenleri tespit için basit fark (localStorage storage event)
+      let lastIds = new Set();
+      try {
+        const cur = JSON.parse(localStorage.getItem(LS_KEY) || "{}");
+        (cur.siparisler||[]).forEach(s => lastIds.add(s.id));
+      } catch {}
+
+      window.addEventListener("storage", (e) => {
+        if (e.key !== LS_KEY) return;
+        let cur; try{ cur = JSON.parse(e.newValue||"{}"); }catch{ cur = {}; }
+        const nowIds = new Set((cur.siparisler||[]).map(s=>s.id));
+        const deleted = [...lastIds].filter(id => !nowIds.has(id));
+        if (deleted.length){
+          let delRaw = localStorage.getItem("__deleted_ids") || "[]";
+          let delIds; try{ delIds = JSON.parse(delRaw); }catch{ delIds = []; }
+          delIds.push(...deleted);
+          localStorage.setItem("__deleted_ids", JSON.stringify(Array.from(new Set(delIds))));
+        }
+        lastIds = nowIds;
+      });
     });
   </script>
 </body>
