@@ -590,16 +590,34 @@ const emailToUnicode = (email) => {
     root.render(<App />);
   </script>
 
-  <!-- 🔒 Ortak kayıtlar için Firebase Auth + Firestore canlı senkron -->
+  <!-- Auth + Live Sync (APP KODUNA DOKUNMADAN EK) -->
+  <style>
+    #authOverlay { position:fixed; inset:0; background:#f7f7f7; display:flex; align-items:center; justify-content:center; z-index:9999; }
+    #authBox { width:320px; background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.08); padding:22px; }
+    #authBox h3 { margin:0 0 12px; font:600 18px/1.2 system-ui, -apple-system, Segoe UI, Roboto; color:#111;}
+    #authBox input { width:100%; box-sizing:border-box; padding:10px 12px; margin:6px 0; border:1px solid #d0d7de; border-radius:8px; font-size:14px; }
+    #authBox button { width:100%; padding:10px 12px; margin-top:8px; border:0; border-radius:8px; background:#059669; color:#fff; font-weight:600; cursor:pointer; }
+    #authBox .err { color:#c1121f; font-size:12px; min-height:16px; margin-top:6px; }
+    #logoutBtn { position:fixed; right:14px; bottom:14px; background:#ef4444; color:#fff; border:0; border-radius:999px; padding:10px 14px; font-weight:700; z-index:9999; cursor:pointer; display:none; }
+  </style>
+  <div id="authOverlay" style="display:flex;">
+    <div id="authBox">
+      <h3>Giriş</h3>
+      <input id="authEmail" type="email" placeholder="E-posta" autocomplete="username"/>
+      <input id="authPass" type="password" placeholder="Şifre" autocomplete="current-password"/>
+      <button id="authLogin">Giriş Yap</button>
+      <div class="err" id="authErr"></div>
+    </div>
+  </div>
+  <button id="logoutBtn">Çıkış</button>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import {
-      getFirestore, collection, doc, setDoc, deleteDoc,
-      serverTimestamp, query, orderBy, onSnapshot
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    const config = {
+    // --- SENİN VERDİĞİN CONFIG ---
+    const firebaseConfig = {
       apiKey: "AIzaSyB-xEmeTVN8oiB4FZzV4UpJpAHkyDHYF4U",
       authDomain: "sekar-filo.firebaseapp.com",
       projectId: "sekar-filo",
@@ -608,110 +626,97 @@ const emailToUnicode = (email) => {
       appId: "1:61274893830:web:c9dfdf8baf0500178f9d87"
     };
 
-    const app = initializeApp(config);
+    const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db   = getFirestore(app);
 
+    // ---- Basit Login UI ----
+    const $ = sel => document.querySelector(sel);
+    $("#authLogin").addEventListener("click", async ()=>{
+      $("#authErr").textContent = "";
+      try {
+        await signInWithEmailAndPassword(auth, $("#authEmail").value.trim(), $("#authPass").value);
+      } catch (e) {
+        $("#authErr").textContent = e.message || "Giriş başarısız";
+      }
+    });
+    $("#logoutBtn").addEventListener("click", ()=>signOut(auth));
+
     const LS_KEY = "lastik_takip_v1";
+    let syncing = false;
+    let lastLocal = "";
 
-    // Basit modal login
-    const ov = document.createElement("div");
-    ov.style.cssText = "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:9999";
-    ov.innerHTML = `<div style="background:#fff;padding:20px;border-radius:10px;width:320px;font:14px system-ui">
-        <h3 style="margin:0 0 10px;font:600 16px system-ui">Giriş (e-posta/şifre)</h3>
-        <input id="em" type="email" placeholder="e-posta" style="width:100%;padding:8px;margin:6px 0;border:1px solid #ccc;border-radius:6px">
-        <input id="pw" type="password" placeholder="şifre" style="width:100%;padding:8px;margin:6px 0;border:1px solid #ccc;border-radius:6px">
-        <button id="lg" style="width:100%;padding:9px;background:#0a7a4c;color:#fff;border:0;border-radius:8px">Giriş Yap</button>
-        <div id="er" style="color:#b00;margin-top:8px;font:12px/1.4 system-ui"></div>
-      </div>`;
-    document.body.appendChild(ov);
+    function readLocal(){
+      try{ return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); }catch{ return {}; }
+    }
+    function writeLocal(obj){
+      localStorage.setItem(LS_KEY, JSON.stringify(obj));
+      // Uygulamanın tabloyu görmesi için sayfayı tazele (koduna dokunmuyoruz)
+      location.reload();
+    }
 
-    document.getElementById("lg").onclick = async () => {
-      try {
-        await signInWithEmailAndPassword(auth,
-          document.getElementById("em").value.trim(),
-          document.getElementById("pw").value
-        );
-      } catch(e){ document.getElementById("er").textContent = e.message; }
-    };
+    async function snapshotToLocal(){
+      const snap = await getDocs(collection(db,"siparisler"));
+      const arr = [];
+      snap.forEach(d=> arr.push(d.data()));
+      const cur = readLocal();
+      cur.siparisler = arr.sort((a,b)=> (b.id||0)-(a.id||0));
+      writeLocal(cur);
+    }
 
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
-      ov.remove();
+    async function pushLocalToCloud(){
+      const data = readLocal();
+      const local = Array.isArray(data.siparisler)? data.siparisler : [];
+      // Mevcut bulut id seti
+      const cloud = await getDocs(collection(db,"siparisler"));
+      const cloudIds = new Set(); cloud.forEach(d=>cloudIds.add(String(d.id)));
+      const cloudMap = new Map(); cloud.forEach(d=>cloudMap.set(String(d.id), d.data()));
 
-      const col = collection(db, "lastik_siparisleri");
+      // Ekle/Güncelle
+      for(const s of local){
+        const sid = String(s.id);
+        await setDoc(doc(db,"siparisler", sid), {...s, updatedAt: serverTimestamp()});
+        cloudIds.delete(sid);
+      }
+      // Local'de artık olmayanlar: sil
+      for(const leftoverId of cloudIds){
+        await deleteDoc(doc(db,"siparisler", leftoverId)).catch(()=>{});
+      }
+    }
 
-      // CANLI dinle
-      onSnapshot(query(col, orderBy("createdAt","desc")), (snap) => {
-        const cloud = snap.docs.map(d => d.data());
-        let current;
-        try{ current = JSON.parse(localStorage.getItem(LS_KEY)||"{}"); }catch{ current = {}; }
-        const merged = {
-          firmalar: current.firmalar || [],
-          araclar:   current.araclar   || [],
-          siparisler: Array.isArray(cloud) ? cloud : []
-        };
-        localStorage.setItem(LS_KEY, JSON.stringify(merged));
-        if (!sessionStorage.getItem("ls_boot_done")) {
-          sessionStorage.setItem("ls_boot_done","1");
-          location.reload();
-        } else {
-          window.dispatchEvent(new StorageEvent('storage', { key: LS_KEY }));
-        }
+    async function startLive(){
+      // İlk senkron: buluttan yerel
+      await snapshotToLocal();
+      // Canlı dinleme: bulutta değişiklik olursa yereli yenile
+      onSnapshot(collection(db,"siparisler"), ()=>{
+        if (syncing) return;
+        snapshotToLocal();
       });
 
-      // Yerel değişiklikleri buluta yaz
-      let lastJson = localStorage.getItem(LS_KEY) || "{}";
-      setInterval(async () => {
-        const nowJson = localStorage.getItem(LS_KEY) || "{}";
-        if (nowJson === lastJson) return;
-        lastJson = nowJson;
-
-        let data; try{ data = JSON.parse(nowJson); }catch{ data = {}; }
-        const list = Array.isArray(data.siparisler) ? data.siparisler : [];
-
-        for (const s of list) {
-          if (!s?.id) continue;
-          const safe = {
-            ...s,
-            email: (window.emailNormalize ? window.emailNormalize(s.email||"") : (s.email||"")),
-            createdAt: s.createdAt || serverTimestamp(),
-          };
-          try { await setDoc(doc(db,"lastik_siparisleri", String(s.id)), safe, { merge:true }); }
-          catch(e){ console.warn("setDoc hata:", e); }
-        }
-
-        const delRaw = localStorage.getItem("__deleted_ids") || "[]";
-        let delIds; try{ delIds = JSON.parse(delRaw); }catch{ delIds = []; }
-        if (Array.isArray(delIds) && delIds.length){
-          for (const id of delIds) {
-            try { await deleteDoc(doc(db,"lastik_siparisleri", String(id))); }
-            catch(e){ console.warn("deleteDoc hata:", e); }
+      // Yerelde değişiklik izleme (polling)
+      setInterval(async ()=>{
+        const now = localStorage.getItem(LS_KEY) || "";
+        if (now !== lastLocal){
+          lastLocal = now;
+          try{
+            syncing = true;
+            await pushLocalToCloud();
+          } finally {
+            syncing = false;
           }
-          localStorage.setItem("__deleted_ids","[]");
         }
-      }, 500);
+      }, 1000);
+    }
 
-      // Silinenleri tespit için basit fark (localStorage storage event)
-      let lastIds = new Set();
-      try {
-        const cur = JSON.parse(localStorage.getItem(LS_KEY) || "{}");
-        (cur.siparisler||[]).forEach(s => lastIds.add(s.id));
-      } catch {}
-
-      window.addEventListener("storage", (e) => {
-        if (e.key !== LS_KEY) return;
-        let cur; try{ cur = JSON.parse(e.newValue||"{}"); }catch{ cur = {}; }
-        const nowIds = new Set((cur.siparisler||[]).map(s=>s.id));
-        const deleted = [...lastIds].filter(id => !nowIds.has(id));
-        if (deleted.length){
-          let delRaw = localStorage.getItem("__deleted_ids") || "[]";
-          let delIds; try{ delIds = JSON.parse(delRaw); }catch{ delIds = []; }
-          delIds.push(...deleted);
-          localStorage.setItem("__deleted_ids", JSON.stringify(Array.from(new Set(delIds))));
-        }
-        lastIds = nowIds;
-      });
+    onAuthStateChanged(auth, user=>{
+      if(user){
+        $("#authOverlay").style.display = "none";
+        $("#logoutBtn").style.display = "inline-flex";
+        startLive();
+      }else{
+        $("#authOverlay").style.display = "flex";
+        $("#logoutBtn").style.display = "none";
+      }
     });
   </script>
 </body>
