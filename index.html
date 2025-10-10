@@ -1,6 +1,56 @@
 <!doctype html>
+
+
 <html lang="tr">
 <head>
+<script>
+// Email normalizer (global) — safe IIFE
+(function(){
+  // Punycode label decoder
+  function __pcDecodeLabel(label){
+    if (!label || label.slice(0,4)!=='xn--') return label;
+    var base=36,tmin=1,tmax=26,damp=700,initial_bias=72,initial_n=128;
+    function digit(cp){return cp-48<10?cp-22:cp-65<26?cp-65:cp-97<26?cp-97:base;}
+    function adapt(delta,numPoints,firstTime){
+      delta = firstTime ? Math.floor(delta/damp) : delta>>1;
+      delta += Math.floor(delta/numPoints);
+      var k=0; while (delta > (((base - tmin) * tmax) >> 1)) { delta = Math.floor(delta / (base - tmin)); k += base; }
+      return k + Math.floor(((base - tmin + 1) * delta) / (delta + 38));
+    }
+    var n=128,i=0,bias=initial_bias; var dash=label.lastIndexOf('-'); var output=[]; var idx=4;
+    if (dash>4){ for(var j=4;j<dash;j++) output.push(label.charCodeAt(j)); idx=dash+1; }
+    while(idx<label.length){
+      var oldi=i,w=1,k=base;
+      while(true){
+        if(idx>=label.length) return label;
+        var d=digit(label.charCodeAt(idx++));
+        i+=d*w;
+        var t = k<=bias ? tmin : (k>=bias+tmax ? tmax : k-bias);
+        if(d<t) break;
+        w*=(base-t);
+      }
+      var outLen=output.length+1;
+      bias=adapt(i-oldi,outLen,oldi===0);
+      n+=Math.floor(i/outLen);
+      i%=outLen;
+      output.splice(i,0,n);
+      i++;
+    }
+    return String.fromCharCode.apply(null, output);
+  }
+  window.emailNormalize = function(email){
+    try{
+      var s = String(email||'').trim().toLowerCase();
+      var at = s.indexOf('@'); if (at<0) return s;
+      var local = s.slice(0,at), domain = s.slice(at+1);
+      var uni = domain.split('.').map(__pcDecodeLabel).join('.');
+      try { uni = uni.normalize('NFC').replace(/i\u0307/g,'i'); } catch(e){}
+      return local + '@' + uni;
+    }catch(e){ return String(email||'').trim().toLowerCase(); }
+  };
+})();
+</script>
+
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SEKAR FİLO LASTİK HAK TAKİP</title>
@@ -22,6 +72,9 @@
   <script type="text/babel">
     const { useEffect, useMemo, useRef, useState } = React;
     const XLSX = window.XLSX;
+
+    // Türkiye illeri
+    const TR_ILLER=["Adana","Adıyaman","Afyonkarahisar","Ağrı","Aksaray","Amasya","Ankara","Antalya","Ardahan","Artvin","Aydın","Balıkesir","Bartın","Batman","Bayburt","Bilecik","Bingöl","Bitlis","Bolu","Burdur","Bursa","Çanakkale","Çankırı","Çorum","Denizli","Diyarbakır","Düzce","Edirne","Elazığ","Erzincan","Erzurum","Eskişehir","Gaziantep","Giresun","Gümüşhane","Hakkari","Hatay","Iğdır","Isparta","İstanbul","İzmir","Kahramanmaraş","Karabük","Karaman","Kars","Kastamonu","Kayseri","Kırıkkale","Kırklareli","Kırşehir","Kilis","Kocaeli","Konya","Kütahya","Malatya","Manisa","Mardin","Mersin","Muğla","Muş","Nevşehir","Niğde","Ordu","Osmaniye","Rize","Sakarya","Samsun","Siirt","Sinop","Sivas","Şanlıurfa","Şırnak","Tekirdağ","Tokat","Trabzon","Tunceli","Uşak","Van","Yalova","Yozgat","Zonguldak"];
 
     // ----------------- Yardımcılar -----------------
     const FIFTY_K = 50000;
@@ -53,7 +106,7 @@
       if(FMT.test(s)) return s;
       const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
       if(m){ const d=new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`); if(!isNaN(d)) return fmt(d); }
-      const d=toDate(s); return d?fmt(d):"";
+      const d=toDate(s); return d?fmt(d):s;
     }
     function download(name, text){
       const a=document.createElement("a");
@@ -62,10 +115,56 @@
     }
 
     // ----------------- Uygulama -----------------
-    
-// --- Türkiye İlleri (81) ---
-const TR_ILLER=["Adana","Adıyaman","Afyonkarahisar","Ağrı","Aksaray","Amasya","Ankara","Antalya","Ardahan","Artvin","Aydın","Balıkesir","Bartın","Batman","Bayburt","Bilecik","Bingöl","Bitlis","Bolu","Burdur","Bursa","Çanakkale","Çankırı","Çorum","Denizli","Diyarbakır","Düzce","Edirne","Elazığ","Erzincan","Erzurum","Eskişehir","Gaziantep","Giresun","Gümüşhane","Hakkari","Hatay","Iğdır","Isparta","İstanbul","İzmir","Kahramanmaraş","Karabük","Karaman","Kars","Kastamonu","Kayseri","Kırıkkale","Kırklareli","Kırşehir","Kilis","Kocaeli","Konya","Kütahya","Malatya","Manisa","Mardin","Mersin","Muğla","Muş","Nevşehir","Niğde","Ordu","Osmaniye","Rize","Sakarya","Samsun","Siirt","Sinop","Sivas","Şanlıurfa","Şırnak","Tekirdağ","Tokat","Trabzon","Tunceli","Uşak","Van","Yalova","Yozgat","Zonguldak"];
-function App(){
+    function App(){
+// IDNA email unicode helper (inside App)
+const __pcDecodeLabel = (label) => {
+  if (!label || !label.startsWith('xn--')) return label;
+  const base=36,tmin=1,tmax=26,damp=700,initial_bias=72,initial_n=128;
+  const digit = (cp) => cp-48<10?cp-22:cp-65<26?cp-65:cp-97<26?cp-97:base;
+  const adapt = (delta,numPoints,firstTime) => {
+    delta = firstTime ? Math.floor(delta/damp) : delta>>1;
+    delta += Math.floor(delta/numPoints);
+    let k=0;
+    while (delta > (((base - tmin) * tmax) >> 1)) { delta = Math.floor(delta / (base - tmin)); k += base; }
+    return k + Math.floor(((base - tmin + 1) * delta) / (delta + 38));
+  };
+  let n=128, i=0, bias=initial_bias;
+  const dash = label.lastIndexOf('-');
+  const output = [];
+  let idx = 4;
+  if (dash > 4){ for(let j=4;j<dash;j++) output.push(label.charCodeAt(j)); idx=dash+1; }
+  while (idx < label.length){
+    let oldi=i, w=1, k=base;
+    while (true){
+      if (idx >= label.length) return label;
+      const d = digit(label.charCodeAt(idx++));
+      i += d*w;
+      const t = k <= bias ? tmin : (k >= bias + tmax ? tmax : k - bias);
+      if (d < t) break;
+      w *= (base - t);
+    }
+    const outLen = output.length + 1;
+    bias = adapt(i - oldi, outLen, oldi === 0);
+    n += Math.floor(i / outLen);
+    i %= outLen;
+    output.splice(i, 0, n);
+    i++;
+  }
+  return String.fromCharCode.apply(null, output);
+};
+const emailToUnicode = (email) => {
+  try{
+    const at = String(email||'').indexOf('@');
+    if (at<0) return email||'';
+    const local = email.slice(0,at);
+    const domain = email.slice(at+1);
+    let uni = domain.split('.').map(__pcDecodeLabel).join('.');
+    // Turkish dotted-i fix: NFC + remove combining dot above after lowercase mapping
+    uni = uni.normalize('NFC').replace(/i\u0307/g,'i');
+    return local + '@' + uni;
+  }catch{ return email||''; }
+};
+
       const [firmalar,setFirmalar]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).firmalar||[]):[]}catch{return[]}});
       const [araclar,setAraclar]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).araclar||[]):[]}catch{return[]}});
       const [siparisler,setSiparisler]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).siparisler||[]):[]}catch{return[]}});
@@ -78,11 +177,11 @@ function App(){
       const [sAracKm,setSAracKm]=useState("");
       const [sFirma,setSFirma]=useState(""); // lastik firması (manuel)
       const [sTur,setSTur]=useState("Yaz");
-      const [sAdSoyad,setSAdSoyad]=useState("");
-      const [sIl,setSIl]=useState("");
-      const [sIlce,setSIlce]=useState("");
-      const [sIrtibat,setSIrtibat]=useState("");
-      const [sEmail,setSEmail]=useState("");
+        const [sAdSoyad,setSAdSoyad]=useState("");
+        const [sIl,setSIl]=useState("");
+        const [sIlce,setSIlce]=useState("");
+        const [sIrtibat,setSIrtibat]=useState("");
+        const [sEmail,setSEmail]=useState("");
 
       // Ön izleme araması (plaka)
       const [sorguPlaka,setSorguPlaka]=useState("");
@@ -109,39 +208,12 @@ function App(){
         const km=clampInt(sAracKm,0)||0;
         const firma=(sFirma||"").trim();
         const tur=(sTur||"Yaz");
-        const adSoyad=(sAdSoyad||"").trim();
-        const il=(sIl||"");
-        const ilce=(sIlce||"").trim();
-        const irtibatNo=(sIrtibat||"").trim();
-        const email=(sEmail||"").trim().toLowerCase();
-        // temel kontroller
-        if(!adSoyad) return alert("İsim Soyisim girin");
-        if(ilce && !il) return alert("İl seçmeden ilçe girilemez");
-        if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert("Geçersiz e-posta");
         if(!ebat) return alert("Ebat girin");
         if(!p) return alert("Plaka girin");
         if(!firma) return alert("Firma girin");
         const id=Date.now();
-        
-
-// --- DUPLICATE GUARD (aynı AY/plaka/ebat/tür) ---
-try {
-  const curMonth = String(tarih || today()).slice(0,7); // yyyy-mm
-  const duplicate = siparisler.some(s =>
-    String(s.tarih || "").slice(0,7) === curMonth &&
-    String(s.plaka).toUpperCase() === p &&
-    String(s.ebat).trim().toUpperCase() === ebat.trim().toUpperCase() &&
-    String(s.tur || "Yaz") === tur
-  );
-  if (duplicate) {
-    alert("Bu AY için aynı plaka/ebat/tür siparişi zaten var.");
-    return;
-  }
-} catch (e) { /* sessizce geç */ }
-// --- /DUPLICATE GUARD ---
-
-setSiparisler(prev=>[{id,tarih:today(),plaka:p,ebat,arac_km:km,firma,tur,ad_soyad:adSoyad,il,ilce,irtibat_no:irtibatNo,email},...prev]);
-        setSorguPlaka(p); setSEbat(""); setSPlaka(""); setSAracKm(""); setSFirma(""); setSTur("Yaz"); setSAdSoyad(""); setSIl(""); setSIlce(""); setSIrtibat(""); setSEmail("");
+        setSiparisler(prev=>[{id,tarih:today(),plaka:p.toUpperCase(),ebat,arac_km:km,firma:(firma||"").toUpperCase(),tur:(tur||"").toUpperCase(),ad_soyad:(sAdSoyad||"").toUpperCase(),il:(sIl||"").toUpperCase(),ilce:(sIlce||"").toUpperCase(),irtibat_no:sIrtibat,email: window.emailNormalize(sEmail)},...prev]);
+        setSorguPlaka(p); setSEbat(""); setSPlaka(""); setSAracKm(""); setSFirma(""); setSTur("Yaz");
       }
       function siparisSil(id){ if(!confirm("Silinsin mi?")) return; setSiparisler(prev=>prev.filter(s=>s.id!==id)); }
 
@@ -205,14 +277,14 @@ setSiparisler(prev=>[{id,tarih:today(),plaka:p,ebat,arac_km:km,firma,tur,ad_soya
           if(s&&d<s) return false; if(e&&d>e) return false;
           if(fPl && !N(x.plaka).includes(fPl)) return false;
           if(fFi && !N(x.firma||"").includes(fFi)) return false;
-          if (fT && N(x.tur).localeCompare(fT, "tr", {sensitivity:"base"}) !== 0) return false;
+          if(fT && N(x.tur)!==fT) return false;
           if(fEb && !N(x.ebat).includes(fEb)) return false;
           return true;
         });
       },[siparisler,sfBas,sfBit,sfPlaka,sfFirma,sfTur,sfEbat]);
 
       function exportSiparisExcel(){
-        const rows = filtered.map(s=>({Tarih:s.tarih,Plaka:s.plaka,Ebat:s.ebat,"Araç KM":s.arac_km,Firma:(s.firma||""),Tür:s.tur}));
+        const rows = filtered.map(s=>({Tarih:s.tarih,Plaka:s.plaka,Ebat:s.ebat,"Araç KM":s.arac_km,Firma:(s.firma||""),Tür:s.tur,"İsim Soyisim":(s.ad_soyad||""),"İl":(s.il||""),"İlçe":(s.ilce||""),"İrtibat":(s.irtibat_no||""),"E-posta": window.emailNormalize(s.email||"")}));
         if(!rows.length) return alert("Filtreye uyan sipariş yok.");
         const ws=XLSX.utils.json_to_sheet(rows), wb=XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb,ws,"Siparisler"); XLSX.writeFile(wb,"siparisler.xlsx");
@@ -250,34 +322,157 @@ setSiparisler(prev=>[{id,tarih:today(),plaka:p,ebat,arac_km:km,firma,tur,ad_soya
                 <form onSubmit={siparisEkle} className="space-y-3">
 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
 
-                  <div><label className="block text-sm mb-0.5">Lastik Ebatı</label>
-                    <input value={sEbat} onChange={e=>setSEbat(e.target.value)} placeholder="Örn: 205/55 R16" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-                  <div><label className="block text-sm mb-0.5">Plaka</label>
-                    <input value={sPlaka} onChange={e=>setSPlaka(e.target.value.toUpperCase())} placeholder="34ABC123" className="mt-1 w-full rounded-lg border px-2 py-1 uppercase tracking-wide text-sm"/></div>
-                  <div><label className="block text-sm mb-0.5">Araç KM</label>
-                    <input value={sAracKm} onChange={e=>setSAracKm(e.target.value)} placeholder="Örn: 120000" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-                  <div><label className="block text-sm mb-0.5">Lastik Firması</label>
-                    <input value={sFirma} onChange={e=>setSFirma(e.target.value)} placeholder="Örn: LastikCo" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-                  <div><label className="block text-sm mb-0.5">Tür</label>
-                    <select value={sTur} onChange={e=>setSTur(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"><option>Yaz</option><option>Kış</option></select></div>
-                  <div><label className="block text-sm mb-0.5">İsim Soyisim</label>
-                    <input value={sAdSoyad} onChange={e=>setSAdSoyad(e.target.value)} placeholder="Örn: Ali Veli" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-                  <div><label className="block text-sm mb-0.5">İl</label>
-                    <select value={sIl} onChange={e=>setSIl(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm">
-                      <option value="">İl (Seçin)</option>
-                      {TR_ILLER.map((il,i)=>(<option key={i} value={il}>{il}</option>))}
-                    </select></div>
-                  <div><label className="block text-sm mb-0.5">İlçe</label>
-                    <input list="ilce-list" value={sIlce} onChange={e=>setSIlce(e.target.value)} placeholder="İlçe" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/>
-                    <datalist id="ilce-list"></datalist>
-                  </div>
-                  <div><label className="block text-sm mb-0.5">İrtibat No</label>
-                    <input value={sIrtibat} onChange={e=>setSIrtibat(e.target.value)} placeholder="Örn: 5xx xxx xx xx" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-                  <div><label className="block text-sm mb-0.5">E-posta</label>
-                    <input type="email" value={sEmail} onChange={e=>setSEmail(e.target.value)} placeholder="ornek@mail.com" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-                  
+                  <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Lastik Ebatı</label>
+  <select value={sEbat} onChange={e=>setSEbat(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm">
+                      <option value="135/80 R13">135/80 R13</option>
+                      <option value="145/70 R13">145/70 R13</option>
+                      <option value="145/80 R13">145/80 R13</option>
+                      <option value="155/65 R13">155/65 R13</option>
+                      <option value="155/70 R13">155/70 R13</option>
+                      <option value="155/80 R13">155/80 R13</option>
+                      <option value="165/60 R13">165/60 R13</option>
+                      <option value="165/65 R13">165/65 R13</option>
+                      <option value="165/70 R13">165/70 R13</option>
+                      <option value="175/60 R13">175/60 R13</option>
+                      <option value="175/65 R13">175/65 R13</option>
+                      <option value="175/70 R13">175/70 R13</option>
+                      <option value="165/60 R14">165/60 R14</option>
+                      <option value="165/65 R14">165/65 R14</option>
+                      <option value="165/70 R14">165/70 R14</option>
+                      <option value="175/60 R14">175/60 R14</option>
+                      <option value="175/65 R14">175/65 R14</option>
+                      <option value="175/70 R14">175/70 R14</option>
+                      <option value="185/55 R14">185/55 R14</option>
+                      <option value="185/60 R14">185/60 R14</option>
+                      <option value="185/65 R14">185/65 R14</option>
+                      <option value="185/70 R14">185/70 R14</option>
+                      <option value="195/60 R14">195/60 R14</option>
+                      <option value="195/65 R14">195/65 R14</option>
+                      <option value="175/65 R15">175/65 R15</option>
+                      <option value="185/55 R15">185/55 R15</option>
+                      <option value="185/60 R15">185/60 R15</option>
+                      <option value="185/65 R15">185/65 R15</option>
+                      <option value="195/50 R15">195/50 R15</option>
+                      <option value="195/55 R15">195/55 R15</option>
+                      <option value="195/60 R15">195/60 R15</option>
+                      <option value="195/65 R15">195/65 R15</option>
+                      <option value="205/50 R15">205/50 R15</option>
+                      <option value="205/55 R15">205/55 R15</option>
+                      <option value="205/60 R15">205/60 R15</option>
+                      <option value="205/65 R15">205/65 R15</option>
+                      <option value="195/45 R16">195/45 R16</option>
+                      <option value="195/50 R16">195/50 R16</option>
+                      <option value="195/55 R16">195/55 R16</option>
+                      <option value="205/45 R16">205/45 R16</option>
+                      <option value="205/50 R16">205/50 R16</option>
+                      <option value="205/55 R16">205/55 R16</option>
+                      <option value="205/60 R16">205/60 R16</option>
+                      <option value="205/65 R16">205/65 R16</option>
+                      <option value="215/55 R16">215/55 R16</option>
+                      <option value="215/60 R16">215/60 R16</option>
+                      <option value="215/65 R16">215/65 R16</option>
+                      <option value="225/50 R16">225/50 R16</option>
+                      <option value="225/55 R16">225/55 R16</option>
+                      <option value="205/45 R17">205/45 R17</option>
+                      <option value="205/50 R17">205/50 R17</option>
+                      <option value="205/55 R17">205/55 R17</option>
+                      <option value="215/45 R17">215/45 R17</option>
+                      <option value="215/50 R17">215/50 R17</option>
+                      <option value="215/55 R17">215/55 R17</option>
+                      <option value="215/60 R17">215/60 R17</option>
+                      <option value="225/45 R17">225/45 R17</option>
+                      <option value="225/50 R17">225/50 R17</option>
+                      <option value="225/55 R17">225/55 R17</option>
+                      <option value="235/45 R17">235/45 R17</option>
+                      <option value="235/55 R17">235/55 R17</option>
+                      <option value="215/40 R18">215/40 R18</option>
+                      <option value="215/45 R18">215/45 R18</option>
+                      <option value="225/40 R18">225/40 R18</option>
+                      <option value="225/45 R18">225/45 R18</option>
+                      <option value="235/40 R18">235/40 R18</option>
+                      <option value="235/45 R18">235/45 R18</option>
+                      <option value="235/50 R18">235/50 R18</option>
+                      <option value="235/55 R18">235/55 R18</option>
+                      <option value="245/40 R18">245/40 R18</option>
+                      <option value="245/45 R18">245/45 R18</option>
+                      <option value="255/45 R18">255/45 R18</option>
+                      <option value="225/35 R19">225/35 R19</option>
+                      <option value="225/40 R19">225/40 R19</option>
+                      <option value="235/35 R19">235/35 R19</option>
+                      <option value="235/40 R19">235/40 R19</option>
+                      <option value="235/45 R19">235/45 R19</option>
+                      <option value="245/40 R19">245/40 R19</option>
+                      <option value="255/35 R19">255/35 R19</option>
+                      <option value="255/40 R19">255/40 R19</option>
+                      <option value="255/45 R19">255/45 R19</option>
+                      <option value="275/35 R19">275/35 R19</option>
+                      <option value="235/35 R20">235/35 R20</option>
+                      <option value="245/35 R20">245/35 R20</option>
+                      <option value="245/40 R20">245/40 R20</option>
+                      <option value="255/35 R20">255/35 R20</option>
+                      <option value="255/40 R20">255/40 R20</option>
+                      <option value="265/40 R20">265/40 R20</option>
+                      <option value="275/35 R20">275/35 R20</option>
+                      <option value="275/40 R20">275/40 R20</option>
+                      <option value="245/35 R21">245/35 R21</option>
+                      <option value="255/35 R21">255/35 R21</option>
+                      <option value="265/40 R21">265/40 R21</option>
+                      <option value="275/35 R21">275/35 R21</option>
+                      <option value="285/35 R21">285/35 R21</option>
+                      <option value="275/35 R22">275/35 R22</option>
+                      <option value="285/35 R22">285/35 R22</option>
+                      <option value="295/35 R22">295/35 R22</option>
+                      <option value="185/75 R16C">185/75 R16C</option>
+                      <option value="195/65 R16C">195/65 R16C</option>
+                      <option value="195/70 R15C">195/70 R15C</option>
+                      <option value="195/75 R16C">195/75 R16C</option>
+                      <option value="205/65 R16C">205/65 R16C</option>
+                      <option value="205/70 R15C">205/70 R15C</option>
+                      <option value="205/75 R16C">205/75 R16C</option>
+                      <option value="215/65 R16C">215/65 R16C</option>
+                      <option value="225/65 R16C">225/65 R16C</option>
+                      <option value="215/60 R17">215/60 R17</option>
+                      <option value="225/60 R17">225/60 R17</option>
+                      <option value="235/60 R17">235/60 R17</option>
+                      <option value="225/65 R17">225/65 R17</option>
+                      <option value="235/65 R17">235/65 R17</option>
+                      <option value="245/65 R17">245/65 R17</option>
+                      <option value="235/55 R18">235/55 R18</option>
+                      <option value="235/60 R18">235/60 R18</option>
+                      <option value="255/55 R18">255/55 R18</option>
+                      <option value="235/55 R19">235/55 R19</option>
+                      <option value="255/50 R19">255/50 R19</option>
+                      <option value="255/45 R20">255/45 R20</option>
+  </select>
 </div>
-<button className="w-full py-2 rounded-lg bg-emerald-600 text-white hover:opacity-95 text-sm">Sipariş Ekle</button></form>
+                  <div><label className="block text-xs font-medium text-gray-600">Plaka</label>
+                    <input value={sPlaka} onChange={e=>setSPlaka(e.target.value.toUpperCase())} placeholder="34ABC123" className="mt-1 w-full rounded-lg border px-2 py-1 uppercase tracking-wide"/></div>
+                  <div><label className="block text-xs font-medium text-gray-600">Araç KM</label>
+                    <input value={sAracKm} onChange={e=>setSAracKm(e.target.value)} placeholder="Örn: 120000" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                  <div><label className="block text-xs font-medium text-gray-600">Lastik Firması</label>
+                    <input value={sFirma} onChange={e=>setSFirma(e.target.value)} placeholder="Örn: LastikCo" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                  <div><label className="block text-xs font-medium text-gray-600">Tür</label>
+                    <select value={sTur} onChange={e=>setSTur(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"><option>Yaz</option><option>Kış</option></select></div>
+                  
+<div><label className="block text-xs font-medium text-gray-600">İsim Soyisim</label>
+  <input value={sAdSoyad} onChange={e=>setSAdSoyad(e.target.value)} placeholder="Örn: Ali Veli" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+<div><label className="block text-xs font-medium text-gray-600">İl</label>
+  <select value={sIl} onChange={e=>setSIl(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm">
+    <option value="">İl (Seçin)</option>
+    {TR_ILLER.map((il,i)=>(<option key={i} value={il}>{il}</option>))}
+  </select></div>
+<div><label className="block text-xs font-medium text-gray-600">İlçe</label>
+  <input value={sIlce} onChange={e=>setSIlce(e.target.value)} placeholder="İlçe" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+<div><label className="block text-xs font-medium text-gray-600">İrtibat No</label>
+  <input value={sIrtibat} onChange={e=>setSIrtibat(e.target.value)} placeholder="Örn: 5xx xxx xx xx" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+<div><label className="block text-xs font-medium text-gray-600">E-posta</label>
+  <input type="email" value={sEmail} onChange={e=>setSEmail(e.target.value)} placeholder="ornek@mail.com" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+
+</div>
+<div className="mt-2 md:col-span-2">
+  <button className="w-full py-2 text-sm rounded-lg bg-emerald-600 text-white hover:opacity-95">Sipariş Ekle</button>
+</div>
+</form>
               </div>
 
               {/* Canlı Önizleme */}
@@ -302,7 +497,7 @@ setSiparisler(prev=>[{id,tarih:today(),plaka:p,ebat,arac_km:km,firma,tur,ad_soya
             </div>
 
             {/* Sipariş Listesi */}
-            <div className="bg-white rounded-2xl p-4 shadow">
+            <div className="bg-white rounded-2xl p-3 shadow">
               <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
                 <h2 className="text-lg font-semibold">Siparişler</h2>
                 <div className="flex items-end gap-2 flex-wrap">
@@ -327,7 +522,7 @@ setSiparisler(prev=>[{id,tarih:today(),plaka:p,ebat,arac_km:km,firma,tur,ad_soya
                   <table className="min-w-full text-sm">
                     <thead><tr className="text-left border-b">
                       <th className="py-2 pr-4">Tarih</th><th className="py-2 pr-4">Plaka</th><th className="py-2 pr-4">Ebat</th>
-                      <th className="py-2 pr-4">Araç KM</th><th className="py-2 pr-4">Firma</th><th className="py-2 pr-4">Tür</th><th className="py-2 pr-4">İşlem</th>
+                      <th className="py-2 pr-4">Araç KM</th><th className="py-2 pr-4">Firma</th><th className="py-2 pr-4">Tür</th><th className="py-2 pr-4">İsim Soyisim</th><th className="py-2 pr-4">İl</th><th className="py-2 pr-4">İlçe</th><th className="py-2 pr-4">İrtibat</th><th className="py-2 pr-4">E-posta</th><th className="py-2 pr-4">İşlem</th>
                     </tr></thead>
                     <tbody>
                       {filtered.map(s=>(
@@ -342,7 +537,7 @@ setSiparisler(prev=>[{id,tarih:today(),plaka:p,ebat,arac_km:km,firma,tur,ad_soya
                           <td className="py-2 pr-4 whitespace-nowrap">{s.il||""}</td>
                           <td className="py-2 pr-4 whitespace-nowrap">{s.ilce||""}</td>
                           <td className="py-2 pr-4 whitespace-nowrap">{s.irtibat_no||""}</td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{s.email||""}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{window.emailNormalize(s.email||"")}</td>
                           <td className="py-2 pr-4"><button onClick={()=>siparisSil(s.id)} className="px-2 py-1 rounded-lg border hover:shadow">Sil</button></td>
                         </tr>
                       ))}
