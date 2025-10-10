@@ -53,7 +53,7 @@
       if(FMT.test(s)) return s;
       const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
       if(m){ const d=new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`); if(!isNaN(d)) return fmt(d); }
-      const d=toDate(s); return d?fmt(d):s;
+      const d=toDate(s); return d?fmt(d):"";
     }
     function download(name, text){
       const a=document.createElement("a");
@@ -62,7 +62,10 @@
     }
 
     // ----------------- Uygulama -----------------
-    function App(){
+    
+// --- Türkiye İlleri (81) ---
+const TR_ILLER=["Adana","Adıyaman","Afyonkarahisar","Ağrı","Aksaray","Amasya","Ankara","Antalya","Ardahan","Artvin","Aydın","Balıkesir","Bartın","Batman","Bayburt","Bilecik","Bingöl","Bitlis","Bolu","Burdur","Bursa","Çanakkale","Çankırı","Çorum","Denizli","Diyarbakır","Düzce","Edirne","Elazığ","Erzincan","Erzurum","Eskişehir","Gaziantep","Giresun","Gümüşhane","Hakkari","Hatay","Iğdır","Isparta","İstanbul","İzmir","Kahramanmaraş","Karabük","Karaman","Kars","Kastamonu","Kayseri","Kırıkkale","Kırklareli","Kırşehir","Kilis","Kocaeli","Konya","Kütahya","Malatya","Manisa","Mardin","Mersin","Muğla","Muş","Nevşehir","Niğde","Ordu","Osmaniye","Rize","Sakarya","Samsun","Siirt","Sinop","Sivas","Şanlıurfa","Şırnak","Tekirdağ","Tokat","Trabzon","Tunceli","Uşak","Van","Yalova","Yozgat","Zonguldak"];
+function App(){
       const [firmalar,setFirmalar]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).firmalar||[]):[]}catch{return[]}});
       const [araclar,setAraclar]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).araclar||[]):[]}catch{return[]}});
       const [siparisler,setSiparisler]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).siparisler||[]):[]}catch{return[]}});
@@ -75,6 +78,11 @@
       const [sAracKm,setSAracKm]=useState("");
       const [sFirma,setSFirma]=useState(""); // lastik firması (manuel)
       const [sTur,setSTur]=useState("Yaz");
+      const [sAdSoyad,setSAdSoyad]=useState("");
+      const [sIl,setSIl]=useState("");
+      const [sIlce,setSIlce]=useState("");
+      const [sIrtibat,setSIrtibat]=useState("");
+      const [sEmail,setSEmail]=useState("");
 
       // Ön izleme araması (plaka)
       const [sorguPlaka,setSorguPlaka]=useState("");
@@ -101,12 +109,39 @@
         const km=clampInt(sAracKm,0)||0;
         const firma=(sFirma||"").trim();
         const tur=(sTur||"Yaz");
+        const adSoyad=(sAdSoyad||"").trim();
+        const il=(sIl||"");
+        const ilce=(sIlce||"").trim();
+        const irtibatNo=(sIrtibat||"").trim();
+        const email=(sEmail||"").trim().toLowerCase();
+        // temel kontroller
+        if(!adSoyad) return alert("İsim Soyisim girin");
+        if(ilce && !il) return alert("İl seçmeden ilçe girilemez");
+        if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert("Geçersiz e-posta");
         if(!ebat) return alert("Ebat girin");
         if(!p) return alert("Plaka girin");
         if(!firma) return alert("Firma girin");
         const id=Date.now();
-        setSiparisler(prev=>[{id,tarih:today(),plaka:p,ebat,arac_km:km,firma,tur},...prev]);
-        setSorguPlaka(p); setSEbat(""); setSPlaka(""); setSAracKm(""); setSFirma(""); setSTur("Yaz");
+        
+
+// --- DUPLICATE GUARD (aynı AY/plaka/ebat/tür) ---
+try {
+  const curMonth = String(tarih || today()).slice(0,7); // yyyy-mm
+  const duplicate = siparisler.some(s =>
+    String(s.tarih || "").slice(0,7) === curMonth &&
+    String(s.plaka).toUpperCase() === p &&
+    String(s.ebat).trim().toUpperCase() === ebat.trim().toUpperCase() &&
+    String(s.tur || "Yaz") === tur
+  );
+  if (duplicate) {
+    alert("Bu AY için aynı plaka/ebat/tür siparişi zaten var.");
+    return;
+  }
+} catch (e) { /* sessizce geç */ }
+// --- /DUPLICATE GUARD ---
+
+setSiparisler(prev=>[{id,tarih:today(),plaka:p,ebat,arac_km:km,firma,tur,ad_soyad:adSoyad,il,ilce,irtibat_no:irtibatNo,email},...prev]);
+        setSorguPlaka(p); setSEbat(""); setSPlaka(""); setSAracKm(""); setSFirma(""); setSTur("Yaz"); setSAdSoyad(""); setSIl(""); setSIlce(""); setSIrtibat(""); setSEmail("");
       }
       function siparisSil(id){ if(!confirm("Silinsin mi?")) return; setSiparisler(prev=>prev.filter(s=>s.id!==id)); }
 
@@ -170,7 +205,7 @@
           if(s&&d<s) return false; if(e&&d>e) return false;
           if(fPl && !N(x.plaka).includes(fPl)) return false;
           if(fFi && !N(x.firma||"").includes(fFi)) return false;
-          if(fT && N(x.tur)!==fT) return false;
+          if (fT && N(x.tur).localeCompare(fT, "tr", {sensitivity:"base"}) !== 0) return false;
           if(fEb && !N(x.ebat).includes(fEb)) return false;
           return true;
         });
@@ -213,18 +248,36 @@
               <div className="bg-white rounded-2xl p-4 shadow h-full">
                 <h2 className="text-lg font-semibold mb-3">Lastik Siparişi</h2>
                 <form onSubmit={siparisEkle} className="space-y-3">
-                  <div><label className="block text-sm">Lastik Ebatı</label>
-                    <input value={sEbat} onChange={e=>setSEbat(e.target.value)} placeholder="Örn: 205/55 R16" className="mt-1 w-full rounded-xl border px-3 py-2"/></div>
-                  <div><label className="block text-sm">Plaka</label>
-                    <input value={sPlaka} onChange={e=>setSPlaka(e.target.value.toUpperCase())} placeholder="34ABC123" className="mt-1 w-full rounded-xl border px-3 py-2 uppercase tracking-wide"/></div>
-                  <div><label className="block text-sm">Araç KM</label>
-                    <input value={sAracKm} onChange={e=>setSAracKm(e.target.value)} placeholder="Örn: 120000" className="mt-1 w-full rounded-xl border px-3 py-2"/></div>
-                  <div><label className="block text-sm">Lastik Firması</label>
-                    <input value={sFirma} onChange={e=>setSFirma(e.target.value)} placeholder="Örn: LastikCo" className="mt-1 w-full rounded-xl border px-3 py-2"/></div>
-                  <div><label className="block text-sm">Tür</label>
-                    <select value={sTur} onChange={e=>setSTur(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2"><option>Yaz</option><option>Kış</option></select></div>
-                  <button className="w-full py-2 rounded-xl bg-emerald-600 text-white hover:opacity-95">Sipariş Ekle</button>
-                </form>
+<div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+
+                  <div><label className="block text-sm mb-0.5">Lastik Ebatı</label>
+                    <input value={sEbat} onChange={e=>setSEbat(e.target.value)} placeholder="Örn: 205/55 R16" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                  <div><label className="block text-sm mb-0.5">Plaka</label>
+                    <input value={sPlaka} onChange={e=>setSPlaka(e.target.value.toUpperCase())} placeholder="34ABC123" className="mt-1 w-full rounded-lg border px-2 py-1 uppercase tracking-wide text-sm"/></div>
+                  <div><label className="block text-sm mb-0.5">Araç KM</label>
+                    <input value={sAracKm} onChange={e=>setSAracKm(e.target.value)} placeholder="Örn: 120000" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                  <div><label className="block text-sm mb-0.5">Lastik Firması</label>
+                    <input value={sFirma} onChange={e=>setSFirma(e.target.value)} placeholder="Örn: LastikCo" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                  <div><label className="block text-sm mb-0.5">Tür</label>
+                    <select value={sTur} onChange={e=>setSTur(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"><option>Yaz</option><option>Kış</option></select></div>
+                  <div><label className="block text-sm mb-0.5">İsim Soyisim</label>
+                    <input value={sAdSoyad} onChange={e=>setSAdSoyad(e.target.value)} placeholder="Örn: Ali Veli" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                  <div><label className="block text-sm mb-0.5">İl</label>
+                    <select value={sIl} onChange={e=>setSIl(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm">
+                      <option value="">İl (Seçin)</option>
+                      {TR_ILLER.map((il,i)=>(<option key={i} value={il}>{il}</option>))}
+                    </select></div>
+                  <div><label className="block text-sm mb-0.5">İlçe</label>
+                    <input list="ilce-list" value={sIlce} onChange={e=>setSIlce(e.target.value)} placeholder="İlçe" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/>
+                    <datalist id="ilce-list"></datalist>
+                  </div>
+                  <div><label className="block text-sm mb-0.5">İrtibat No</label>
+                    <input value={sIrtibat} onChange={e=>setSIrtibat(e.target.value)} placeholder="Örn: 5xx xxx xx xx" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                  <div><label className="block text-sm mb-0.5">E-posta</label>
+                    <input type="email" value={sEmail} onChange={e=>setSEmail(e.target.value)} placeholder="ornek@mail.com" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                  
+</div>
+<button className="w-full py-2 rounded-lg bg-emerald-600 text-white hover:opacity-95 text-sm">Sipariş Ekle</button></form>
               </div>
 
               {/* Canlı Önizleme */}
@@ -285,6 +338,11 @@
                           <td className="py-2 pr-4 whitespace-nowrap">{Number(s.arac_km||0).toLocaleString("tr-TR")}</td>
                           <td className="py-2 pr-4 whitespace-nowrap">{s.firma||""}</td>
                           <td className="py-2 pr-4 whitespace-nowrap">{s.tur}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.ad_soyad||""}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.il||""}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.ilce||""}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.irtibat_no||""}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.email||""}</td>
                           <td className="py-2 pr-4"><button onClick={()=>siparisSil(s.id)} className="px-2 py-1 rounded-lg border hover:shadow">Sil</button></td>
                         </tr>
                       ))}
