@@ -1,622 +1,255 @@
 <!doctype html>
-
-
 <html lang="tr">
 <head>
-<script>
-// Email normalizer (global) — safe IIFE
-(function(){
-  // Punycode label decoder
-  function __pcDecodeLabel(label){
-    if (!label || label.slice(0,4)!=='xn--') return label;
-    var base=36,tmin=1,tmax=26,damp=700,initial_bias=72,initial_n=128;
-    function digit(cp){return cp-48<10?cp-22:cp-65<26?cp-65:cp-97<26?cp-97:base;}
-    function adapt(delta,numPoints,firstTime){
-      delta = firstTime ? Math.floor(delta/damp) : delta>>1;
-      delta += Math.floor(delta/numPoints);
-      var k=0; while (delta > (((base - tmin) * tmax) >> 1)) { delta = Math.floor(delta / (base - tmin)); k += base; }
-      return k + Math.floor(((base - tmin + 1) * delta) / (delta + 38));
-    }
-    var n=128,i=0,bias=initial_bias; var dash=label.lastIndexOf('-'); var output=[]; var idx=4;
-    if (dash>4){ for(var j=4;j<dash;j++) output.push(label.charCodeAt(j)); idx=dash+1; }
-    while(idx<label.length){
-      var oldi=i,w=1,k=base;
-      while(true){
-        if(idx>=label.length) return label;
-        var d=digit(label.charCodeAt(idx++));
-        i+=d*w;
-        var t = k<=bias ? tmin : (k>=bias+tmax ? tmax : k-bias);
-        if(d<t) break;
-        w*=(base-t);
-      }
-      var outLen=output.length+1;
-      bias=adapt(i-oldi,outLen,oldi===0);
-      n+=Math.floor(i/outLen);
-      i%=outLen;
-      output.splice(i,0,n);
-      i++;
-    }
-    return String.fromCharCode.apply(null, output);
-  }
-  window.emailNormalize = function(email){
-    try{
-      var s = String(email||'').trim().toLowerCase();
-      var at = s.indexOf('@'); if (at<0) return s;
-      var local = s.slice(0,at), domain = s.slice(at+1);
-      var uni = domain.split('.').map(__pcDecodeLabel).join('.');
-      try { uni = uni.normalize('NFC').replace(/i\u0307/g,'i'); } catch(e){}
-      return local + '@' + uni;
-    }catch(e){ return String(email||'').trim().toLowerCase(); }
-  };
-})();
-</script>
-
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SEKAR FİLO LASTİK HAK TAKİP</title>
 
-  <!-- Stil: Tailwind -->
+  <!-- Tailwind (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- React + ReactDOM + Babel (tek dosyada JSX çalıştırmak için) -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <!-- Excel işlemleri: SheetJS -->
+  <!-- SheetJS (Excel'e aktar) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-</head>
-<body class="bg-gray-50 text-gray-900">
-  <div id="root"></div>
 
-  <script type="text/babel">
-    const { useEffect, useMemo, useRef, useState } = React;
-    const XLSX = window.XLSX;
-
-    // Türkiye illeri
-    const TR_ILLER=["Adana","Adıyaman","Afyonkarahisar","Ağrı","Aksaray","Amasya","Ankara","Antalya","Ardahan","Artvin","Aydın","Balıkesir","Bartın","Batman","Bayburt","Bilecik","Bingöl","Bitlis","Bolu","Burdur","Bursa","Çanakkale","Çankırı","Çorum","Denizli","Diyarbakır","Düzce","Edirne","Elazığ","Erzincan","Erzurum","Eskişehir","Gaziantep","Giresun","Gümüşhane","Hakkari","Hatay","Iğdır","Isparta","İstanbul","İzmir","Kahramanmaraş","Karabük","Karaman","Kars","Kastamonu","Kayseri","Kırıkkale","Kırklareli","Kırşehir","Kilis","Kocaeli","Konya","Kütahya","Malatya","Manisa","Mardin","Mersin","Muğla","Muş","Nevşehir","Niğde","Ordu","Osmaniye","Rize","Sakarya","Samsun","Siirt","Sinop","Sivas","Şanlıurfa","Şırnak","Tekirdağ","Tokat","Trabzon","Tunceli","Uşak","Van","Yalova","Yozgat","Zonguldak"];
-
-    // ----------------- Yardımcılar -----------------
-    const FIFTY_K = 50000;
-    const LS_KEY  = "lastik_takip_v1";
-
-    const FMT = /^(\d{2})\.(\d{2})\.(\d{2})$/;
-    const pad2 = n => String(n).padStart(2,"0");
-    const fmt  = d => `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${pad2(d.getFullYear()%100)}`;
-    const today= () => fmt(new Date());
-
-    function toDate(s){
-      const m = FMT.exec(String(s ?? "")); if(!m) return null;
-      const d = new Date(`${2000+ +m[3]}-${m[2]}-${m[1]}T00:00:00`);
-      if(isNaN(d)) return null;
-      if(d.getDate()!=+m[1]||d.getMonth()+1!=+m[2]) return null;
-      return d;
-    }
-    const daysInc=(a,b)=>Math.floor((b-a)/86400000)+1;
-    const prorata=(yk,s,e)=>{ const ds=toDate(s), de=toDate(e); if(!ds||!de||de<ds) return 0; return yk*(daysInc(ds,de)/365); };
-    const clampInt=(v,fb=null)=>{ if(v===""||v==null) return fb; const n=Number(v); return Number.isFinite(n)?Math.floor(n):fb; };
-
-    function normExcelDate(v){
-      if(v==null) return "";
-      if(typeof v==="number" && XLSX.SSF && XLSX.SSF.parse_date_code){
-        const o=XLSX.SSF.parse_date_code(v);
-        if(o && o.y && o.m && o.d) return fmt(new Date(o.y,o.m-1,o.d));
-      }
-      const s=String(v).trim();
-      if(FMT.test(s)) return s;
-      const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-      if(m){ const d=new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`); if(!isNaN(d)) return fmt(d); }
-      const d=toDate(s); return d?fmt(d):s;
-    }
-    function download(name, text){
-      const a=document.createElement("a");
-      a.href=URL.createObjectURL(new Blob([text],{type:"text/plain;charset=utf-8"}));
-      a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-    }
-
-    // ----------------- Uygulama -----------------
-    function App(){
-// IDNA email unicode helper (inside App)
-const __pcDecodeLabel = (label) => {
-  if (!label || !label.startsWith('xn--')) return label;
-  const base=36,tmin=1,tmax=26,damp=700,initial_bias=72,initial_n=128;
-  const digit = (cp) => cp-48<10?cp-22:cp-65<26?cp-65:cp-97<26?cp-97:base;
-  const adapt = (delta,numPoints,firstTime) => {
-    delta = firstTime ? Math.floor(delta/damp) : delta>>1;
-    delta += Math.floor(delta/numPoints);
-    let k=0;
-    while (delta > (((base - tmin) * tmax) >> 1)) { delta = Math.floor(delta / (base - tmin)); k += base; }
-    return k + Math.floor(((base - tmin + 1) * delta) / (delta + 38));
-  };
-  let n=128, i=0, bias=initial_bias;
-  const dash = label.lastIndexOf('-');
-  const output = [];
-  let idx = 4;
-  if (dash > 4){ for(let j=4;j<dash;j++) output.push(label.charCodeAt(j)); idx=dash+1; }
-  while (idx < label.length){
-    let oldi=i, w=1, k=base;
-    while (true){
-      if (idx >= label.length) return label;
-      const d = digit(label.charCodeAt(idx++));
-      i += d*w;
-      const t = k <= bias ? tmin : (k >= bias + tmax ? tmax : k - bias);
-      if (d < t) break;
-      w *= (base - t);
-    }
-    const outLen = output.length + 1;
-    bias = adapt(i - oldi, outLen, oldi === 0);
-    n += Math.floor(i / outLen);
-    i %= outLen;
-    output.splice(i, 0, n);
-    i++;
-  }
-  return String.fromCharCode.apply(null, output);
-};
-const emailToUnicode = (email) => {
-  try{
-    const at = String(email||'').indexOf('@');
-    if (at<0) return email||'';
-    const local = email.slice(0,at);
-    const domain = email.slice(at+1);
-    let uni = domain.split('.').map(__pcDecodeLabel).join('.');
-    // Turkish dotted-i fix: NFC + remove combining dot above after lowercase mapping
-    uni = uni.normalize('NFC').replace(/i\u0307/g,'i');
-    return local + '@' + uni;
-  }catch{ return email||''; }
-};
-
-      const [firmalar,setFirmalar]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).firmalar||[]):[]}catch{return[]}});
-      const [araclar,setAraclar]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).araclar||[]):[]}catch{return[]}});
-      const [siparisler,setSiparisler]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).siparisler||[]):[]}catch{return[]}});
-
-      useEffect(()=>{ localStorage.setItem(LS_KEY, JSON.stringify({firmalar,araclar,siparisler})) },[firmalar,araclar,siparisler]);
-
-      // Sipariş formu
-      const [sEbat,setSEbat]=useState("");
-      const [sPlaka,setSPlaka]=useState("");
-      const [sAracKm,setSAracKm]=useState("");
-      const [sFirma,setSFirma]=useState(""); // lastik firması (manuel)
-      const [sTur,setSTur]=useState("Yaz");
-        const [sAdSoyad,setSAdSoyad]=useState("");
-        const [sIl,setSIl]=useState("");
-        const [sIlce,setSIlce]=useState("");
-        const [sIrtibat,setSIrtibat]=useState("");
-        const [sEmail,setSEmail]=useState("");
-
-      // Ön izleme araması (plaka)
-      const [sorguPlaka,setSorguPlaka]=useState("");
-
-      // (gizli) ekleme formları için state – Excel import uyumluluğu
-      const [firmaId,setFirmaId]=useState("");
-      const [baslangic,setBaslangic]=useState("");
-      const [bitis,setBitis]=useState("");
-      const [yillikKm,setYillikKm]=useState("");
-      const [sinirsiz,setSinirsiz]=useState(false);
-
-      const fileRef=useRef(null); const xlsxRef=useRef(null);
-
-      const firmaMap = useMemo(()=> new Map(firmalar.map(f=>[f.id,f.ad])), [firmalar]);
-      const seciliArac = useMemo(()=>{
-        const p=(sorguPlaka||"").trim().toUpperCase();
-        return araclar.find(a=>a.plaka===p)||null;
-      },[sorguPlaka,araclar]);
-
-      function siparisEkle(e){
-        e.preventDefault();
-        const p=(sPlaka||"").trim().toUpperCase();
-        const ebat=(sEbat||"").trim();
-        const km=clampInt(sAracKm,0)||0;
-        const firma=(sFirma||"").trim();
-        const tur=(sTur||"Yaz");
-        if(!ebat) return alert("Ebat girin");
-        if(!p) return alert("Plaka girin");
-        if(!firma) return alert("Firma girin");
-        const id=Date.now();
-        setSiparisler(prev=>[{id,tarih:today(),plaka:p.toUpperCase(),ebat,arac_km:km,firma:(firma||"").toUpperCase(),tur:(tur||"").toUpperCase(),ad_soyad:(sAdSoyad||"").toUpperCase(),il:(sIl||"").toUpperCase(),ilce:(sIlce||"").toUpperCase(),irtibat_no:sIrtibat,email: window.emailNormalize(sEmail)},...prev]);
-        setSorguPlaka(p); setSEbat(""); setSPlaka(""); setSAracKm(""); setSFirma(""); setSTur("Yaz");
-      }
-      function siparisSil(id){ if(!confirm("Silinsin mi?")) return; setSiparisler(prev=>prev.filter(s=>s.id!==id)); }
-
-      // Hesaplar
-      const tahminiKm = a => a.yillik_km_hakki===null ? 200000 : Math.round(prorata(a.yillik_km_hakki,a.kira_baslangic,a.kira_bitis));
-      const yazHakki = a => Math.floor(Math.max(0,tahminiKm(a))/50000);
-      const kisHakki = _ => 1;
-
-      // Dışa ve içe aktarım
-      function exportCSV(){
-        const hdr=["plaka","firma_id","kira_baslangic","kira_bitis","yillik_km_hakki","notlar"];
-        const rows=[hdr.join(",")];
-        for(const a of araclar) rows.push([a.plaka,a.firma_id,a.kira_baslangic,a.kira_bitis,a.yillik_km_hakki==null?"":a.yillik_km_hakki,(a.notlar||"").replaceAll(",",";")].join(","));
-        download("araclar.csv",rows.join("\n"));
-      }
-      function exportJSON(){ download("veri.json", JSON.stringify({firmalar,araclar,siparisler},null,2)); }
-      function importJSON(ev){
-        const f=ev.target.files?.[0]; if(!f) return;
-        const fr=new FileReader(); fr.onload=()=>{ try{
-          const d=JSON.parse(String(fr.result||"{}"));
-          if(Array.isArray(d.firmalar)) setFirmalar(d.firmalar);
-          if(Array.isArray(d.araclar)) setAraclar(d.araclar);
-          if(Array.isArray(d.siparisler)) setSiparisler(d.siparisler);
-        }catch(e){ alert("JSON okunamadı: "+e.message) } finally{ ev.target.value=""; } }; fr.readAsText(f,"utf-8");
-      }
-      function importXLSX(ev){
-        const f=ev.target.files?.[0]; if(!f) return;
-        const fr=new FileReader(); fr.onload=()=>{ try{
-          const wb=XLSX.read(new Uint8Array(fr.result),{type:"array"});
-          const wsF=wb.Sheets["Firmalar"]; let yeniF=[];
-          if(wsF){ yeniF=XLSX.utils.sheet_to_json(wsF,{defval:""}).map(r=>({id:String(r.id||"").trim(), ad:String(r.ad||"").trim()})).filter(x=>x.id&&x.ad); }
-          const wsA=wb.Sheets["Araclar"]; let yeniA=[];
-          if(wsA){
-            yeniA=XLSX.utils.sheet_to_json(wsA,{defval:""}).map(r=>{
-              const yk=String(r.yillik_km_hakki??"").trim();
-              const ykVal = yk==="" ? null : (Number.isFinite(Number(yk))?Math.floor(Number(yk)):null);
-              return {plaka:String(r.plaka||"").trim().toUpperCase(),
-                      firma_id:String(r.firma_id||"").trim(),
-                      kira_baslangic:normExcelDate(r.kira_baslangic),
-                      kira_bitis:normExcelDate(r.kira_bitis),
-                      yillik_km_hakki: ykVal,
-                      notlar:String(r.notlar||"").trim()};
-            }).filter(a=>a.plaka&&a.firma_id&&a.kira_baslangic&&a.kira_bitis);
-          }
-          if(yeniF.length){ const m=new Map(firmalar.map(f=>[f.id,f])); yeniF.forEach(f=>m.set(f.id,f)); setFirmalar([...m.values()].sort((a,b)=>a.id.localeCompare(b.id))); }
-          if(yeniA.length){ const m=new Map(araclar.map(a=>[a.plaka,a])); yeniA.forEach(a=>m.set(a.plaka,a)); setAraclar([...m.values()].sort((a,b)=>a.plaka.localeCompare(b.plaka))); }
-          if(!yeniF.length && !yeniA.length) alert("Excel'de 'Firmalar' ve/veya 'Araclar' sayfaları yok.");
-        }catch(e){ alert("Excel okunamadı: "+e.message) } finally{ ev.target.value=""; } }; fr.readAsArrayBuffer(f);
-      }
-
-      // Sipariş filtreleri
-      const [sfBas,setSfBas]=useState(""),[sfBit,setSfBit]=useState(""),[sfPlaka,setSfPlaka]=useState(""),
-            [sfFirma,setSfFirma]=useState(""),[sfTur,setSfTur]=useState(""),[sfEbat,setSfEbat]=useState("");
-
-      const filtered = useMemo(()=>{
-        const s=toDate(sfBas), e=toDate(sfBit);
-        const N=x=>String(x||"").toUpperCase();
-        const fPl=N(sfPlaka), fFi=N(sfFirma), fEb=N(sfEbat), fT=N(sfTur);
-        return siparisler.filter(x=>{
-          const d=toDate(x.tarih); if(!d) return false;
-          if(s&&d<s) return false; if(e&&d>e) return false;
-          if(fPl && !N(x.plaka).includes(fPl)) return false;
-          if(fFi && !N(x.firma||"").includes(fFi)) return false;
-          if(fT && N(x.tur)!==fT) return false;
-          if(fEb && !N(x.ebat).includes(fEb)) return false;
-          return true;
-        });
-      },[siparisler,sfBas,sfBit,sfPlaka,sfFirma,sfTur,sfEbat]);
-
-      function exportSiparisExcel(){
-        const rows = filtered.map(s=>({Tarih:s.tarih,Plaka:s.plaka,Ebat:s.ebat,"Araç KM":s.arac_km,Firma:(s.firma||""),Tür:s.tur,"İsim Soyisim":(s.ad_soyad||""),"İl":(s.il||""),"İlçe":(s.ilce||""),"İrtibat":(s.irtibat_no||""),"E-posta": window.emailNormalize(s.email||"")}));
-        if(!rows.length) return alert("Filtreye uyan sipariş yok.");
-        const ws=XLSX.utils.json_to_sheet(rows), wb=XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb,ws,"Siparisler"); XLSX.writeFile(wb,"siparisler.xlsx");
-      }
-
-      const siparisOzet = useMemo(()=>{
-        const p=(sorguPlaka||"").trim().toUpperCase(); let yaz=0,kis=0;
-        if(!p) return {yaz,kis};
-        for(const s of siparisler){ if(String(s.plaka).toUpperCase()===p){ (String(s.tur||"Yaz").toLowerCase()==="kış"||String(s.tur||"").toLowerCase()==="kis")? kis++ : yaz++; } }
-        return {yaz,kis};
-      },[sorguPlaka,siparisler]);
-
-      // --------------- UI ---------------
-      return (
-        <div className="min-h-screen">
-          <header className="sticky top-0 z-10 bg-emerald-600 text-white">
-            <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-              <h1 className="text-2xl font-bold">SEKAR FİLO LASTİK HAK TAKİP</h1>
-              <div className="flex gap-2">
-                <button onClick={exportCSV} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">CSV Dışa Aktar</button>
-                <button onClick={exportJSON} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">JSON Dışa Aktar</button>
-                <input ref={fileRef} type="file" accept="application/json" onChange={importJSON} className="hidden"/>
-                <button onClick={()=>fileRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">JSON İçe Al</button>
-                <input ref={xlsxRef} type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden"/>
-                <button onClick={()=>xlsxRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Excel İçe Al</button>
-              </div>
-            </div>
-          </header>
-
-          <main className="max-w-7xl mx-auto p-4 grid grid-cols-1 gap-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-              {/* Lastik Siparişi */}
-              <div className="bg-white rounded-2xl p-4 shadow h-full">
-                <h2 className="text-lg font-semibold mb-3">Lastik Siparişi</h2>
-                <form onSubmit={siparisEkle} className="space-y-3">
-<div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-
-                  <div><label className="block text-xs font-medium text-gray-600 mb-0.5">Lastik Ebatı</label>
-  <select value={sEbat} onChange={e=>setSEbat(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm">
-                      <option value="135/80 R13">135/80 R13</option>
-                      <option value="145/70 R13">145/70 R13</option>
-                      <option value="145/80 R13">145/80 R13</option>
-                      <option value="155/65 R13">155/65 R13</option>
-                      <option value="155/70 R13">155/70 R13</option>
-                      <option value="155/80 R13">155/80 R13</option>
-                      <option value="165/60 R13">165/60 R13</option>
-                      <option value="165/65 R13">165/65 R13</option>
-                      <option value="165/70 R13">165/70 R13</option>
-                      <option value="175/60 R13">175/60 R13</option>
-                      <option value="175/65 R13">175/65 R13</option>
-                      <option value="175/70 R13">175/70 R13</option>
-                      <option value="165/60 R14">165/60 R14</option>
-                      <option value="165/65 R14">165/65 R14</option>
-                      <option value="165/70 R14">165/70 R14</option>
-                      <option value="175/60 R14">175/60 R14</option>
-                      <option value="175/65 R14">175/65 R14</option>
-                      <option value="175/70 R14">175/70 R14</option>
-                      <option value="185/55 R14">185/55 R14</option>
-                      <option value="185/60 R14">185/60 R14</option>
-                      <option value="185/65 R14">185/65 R14</option>
-                      <option value="185/70 R14">185/70 R14</option>
-                      <option value="195/60 R14">195/60 R14</option>
-                      <option value="195/65 R14">195/65 R14</option>
-                      <option value="175/65 R15">175/65 R15</option>
-                      <option value="185/55 R15">185/55 R15</option>
-                      <option value="185/60 R15">185/60 R15</option>
-                      <option value="185/65 R15">185/65 R15</option>
-                      <option value="195/50 R15">195/50 R15</option>
-                      <option value="195/55 R15">195/55 R15</option>
-                      <option value="195/60 R15">195/60 R15</option>
-                      <option value="195/65 R15">195/65 R15</option>
-                      <option value="205/50 R15">205/50 R15</option>
-                      <option value="205/55 R15">205/55 R15</option>
-                      <option value="205/60 R15">205/60 R15</option>
-                      <option value="205/65 R15">205/65 R15</option>
-                      <option value="195/45 R16">195/45 R16</option>
-                      <option value="195/50 R16">195/50 R16</option>
-                      <option value="195/55 R16">195/55 R16</option>
-                      <option value="205/45 R16">205/45 R16</option>
-                      <option value="205/50 R16">205/50 R16</option>
-                      <option value="205/55 R16">205/55 R16</option>
-                      <option value="205/60 R16">205/60 R16</option>
-                      <option value="205/65 R16">205/65 R16</option>
-                      <option value="215/55 R16">215/55 R16</option>
-                      <option value="215/60 R16">215/60 R16</option>
-                      <option value="215/65 R16">215/65 R16</option>
-                      <option value="225/50 R16">225/50 R16</option>
-                      <option value="225/55 R16">225/55 R16</option>
-                      <option value="205/45 R17">205/45 R17</option>
-                      <option value="205/50 R17">205/50 R17</option>
-                      <option value="205/55 R17">205/55 R17</option>
-                      <option value="215/45 R17">215/45 R17</option>
-                      <option value="215/50 R17">215/50 R17</option>
-                      <option value="215/55 R17">215/55 R17</option>
-                      <option value="215/60 R17">215/60 R17</option>
-                      <option value="225/45 R17">225/45 R17</option>
-                      <option value="225/50 R17">225/50 R17</option>
-                      <option value="225/55 R17">225/55 R17</option>
-                      <option value="235/45 R17">235/45 R17</option>
-                      <option value="235/55 R17">235/55 R17</option>
-                      <option value="215/40 R18">215/40 R18</option>
-                      <option value="215/45 R18">215/45 R18</option>
-                      <option value="225/40 R18">225/40 R18</option>
-                      <option value="225/45 R18">225/45 R18</option>
-                      <option value="235/40 R18">235/40 R18</option>
-                      <option value="235/45 R18">235/45 R18</option>
-                      <option value="235/50 R18">235/50 R18</option>
-                      <option value="235/55 R18">235/55 R18</option>
-                      <option value="245/40 R18">245/40 R18</option>
-                      <option value="245/45 R18">245/45 R18</option>
-                      <option value="255/45 R18">255/45 R18</option>
-                      <option value="225/35 R19">225/35 R19</option>
-                      <option value="225/40 R19">225/40 R19</option>
-                      <option value="235/35 R19">235/35 R19</option>
-                      <option value="235/40 R19">235/40 R19</option>
-                      <option value="235/45 R19">235/45 R19</option>
-                      <option value="245/40 R19">245/40 R19</option>
-                      <option value="255/35 R19">255/35 R19</option>
-                      <option value="255/40 R19">255/40 R19</option>
-                      <option value="255/45 R19">255/45 R19</option>
-                      <option value="275/35 R19">275/35 R19</option>
-                      <option value="235/35 R20">235/35 R20</option>
-                      <option value="245/35 R20">245/35 R20</option>
-                      <option value="245/40 R20">245/40 R20</option>
-                      <option value="255/35 R20">255/35 R20</option>
-                      <option value="255/40 R20">255/40 R20</option>
-                      <option value="265/40 R20">265/40 R20</option>
-                      <option value="275/35 R20">275/35 R20</option>
-                      <option value="275/40 R20">275/40 R20</option>
-                      <option value="245/35 R21">245/35 R21</option>
-                      <option value="255/35 R21">255/35 R21</option>
-                      <option value="265/40 R21">265/40 R21</option>
-                      <option value="275/35 R21">275/35 R21</option>
-                      <option value="285/35 R21">285/35 R21</option>
-                      <option value="275/35 R22">275/35 R22</option>
-                      <option value="285/35 R22">285/35 R22</option>
-                      <option value="295/35 R22">295/35 R22</option>
-                      <option value="185/75 R16C">185/75 R16C</option>
-                      <option value="195/65 R16C">195/65 R16C</option>
-                      <option value="195/70 R15C">195/70 R15C</option>
-                      <option value="195/75 R16C">195/75 R16C</option>
-                      <option value="205/65 R16C">205/65 R16C</option>
-                      <option value="205/70 R15C">205/70 R15C</option>
-                      <option value="205/75 R16C">205/75 R16C</option>
-                      <option value="215/65 R16C">215/65 R16C</option>
-                      <option value="225/65 R16C">225/65 R16C</option>
-                      <option value="215/60 R17">215/60 R17</option>
-                      <option value="225/60 R17">225/60 R17</option>
-                      <option value="235/60 R17">235/60 R17</option>
-                      <option value="225/65 R17">225/65 R17</option>
-                      <option value="235/65 R17">235/65 R17</option>
-                      <option value="245/65 R17">245/65 R17</option>
-                      <option value="235/55 R18">235/55 R18</option>
-                      <option value="235/60 R18">235/60 R18</option>
-                      <option value="255/55 R18">255/55 R18</option>
-                      <option value="235/55 R19">235/55 R19</option>
-                      <option value="255/50 R19">255/50 R19</option>
-                      <option value="255/45 R20">255/45 R20</option>
-  </select>
-</div>
-                  <div><label className="block text-xs font-medium text-gray-600">Plaka</label>
-                    <input value={sPlaka} onChange={e=>setSPlaka(e.target.value.toUpperCase())} placeholder="34ABC123" className="mt-1 w-full rounded-lg border px-2 py-1 uppercase tracking-wide"/></div>
-                  <div><label className="block text-xs font-medium text-gray-600">Araç KM</label>
-                    <input value={sAracKm} onChange={e=>setSAracKm(e.target.value)} placeholder="Örn: 120000" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-                  <div><label className="block text-xs font-medium text-gray-600">Lastik Firması</label>
-                    <input value={sFirma} onChange={e=>setSFirma(e.target.value)} placeholder="Örn: LastikCo" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-                  <div><label className="block text-xs font-medium text-gray-600">Tür</label>
-                    <select value={sTur} onChange={e=>setSTur(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"><option>Yaz</option><option>Kış</option></select></div>
-                  
-<div><label className="block text-xs font-medium text-gray-600">İsim Soyisim</label>
-  <input value={sAdSoyad} onChange={e=>setSAdSoyad(e.target.value)} placeholder="Örn: Ali Veli" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-<div><label className="block text-xs font-medium text-gray-600">İl</label>
-  <select value={sIl} onChange={e=>setSIl(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm">
-    <option value="">İl (Seçin)</option>
-    {TR_ILLER.map((il,i)=>(<option key={i} value={il}>{il}</option>))}
-  </select></div>
-<div><label className="block text-xs font-medium text-gray-600">İlçe</label>
-  <input value={sIlce} onChange={e=>setSIlce(e.target.value)} placeholder="İlçe" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-<div><label className="block text-xs font-medium text-gray-600">İrtibat No</label>
-  <input value={sIrtibat} onChange={e=>setSIrtibat(e.target.value)} placeholder="Örn: 5xx xxx xx xx" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-<div><label className="block text-xs font-medium text-gray-600">E-posta</label>
-  <input type="email" value={sEmail} onChange={e=>setSEmail(e.target.value)} placeholder="ornek@mail.com" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
-
-</div>
-<div className="mt-2 md:col-span-2">
-  <button className="w-full py-2 text-sm rounded-lg bg-emerald-600 text-white hover:opacity-95">Sipariş Ekle</button>
-</div>
-</form>
-              </div>
-
-              {/* Canlı Önizleme */}
-              <div className="bg-white rounded-2xl p-4 shadow h-full">
-                <h2 className="text-lg font-semibold mb-3">Canlı Önizleme</h2>
-                <PreviewCard
-                  temp={{
-                    plaka:(sorguPlaka||"").toUpperCase(),
-                    firma_ad: seciliArac ? (firmaMap.get(seciliArac.firma_id)||seciliArac.firma_id) : (firmaMap.get(firmaId)||firmaId||"—"),
-                    kira_baslangic: seciliArac ? seciliArac.kira_baslangic : (baslangic || "—"),
-                    kira_bitis: seciliArac ? seciliArac.kira_bitis : (bitis || "—"),
-                    yillik_km: seciliArac ? (seciliArac.yillik_km_hakki===null?null:seciliArac.yillik_km_hakki) : (sinirsiz?null:(clampInt(yillikKm,0)||0)),
-                    tahmini_km: (()=>{ const s=seciliArac?seciliArac.kira_baslangic:baslangic, e=seciliArac?seciliArac.kira_bitis:bitis, y=seciliArac?seciliArac.yillik_km_hakki:(sinirsiz?null:(clampInt(yillikKm,0)||0)); return y===null?200000:Math.round(prorata(y,s||"",e||"")); })(),
-                    kis_hakki: (seciliArac?1:(baslangic&&bitis?1:0)),
-                    yaz_hakki: (()=>{ const s=seciliArac?seciliArac.kira_baslangic:baslangic, e=seciliArac?seciliArac.kira_bitis:bitis, y=seciliArac?seciliArac.yillik_km_hakki:(sinirsiz?null:(clampInt(yillikKm,0)||0)); const t=(y===null)?200000:Math.round(prorata(y,s||"",e||"")); return Math.floor(Math.max(0,t)/50000); })(),
-                  }}
-                  queryPlaka={sorguPlaka}
-                  onQueryChange={setSorguPlaka}
-                  orderCounts={siparisOzet}
-                />
-              </div>
-            </div>
-
-            {/* Sipariş Listesi */}
-            <div className="bg-white rounded-2xl p-3 shadow">
-              <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-                <h2 className="text-lg font-semibold">Siparişler</h2>
-                <div className="flex items-end gap-2 flex-wrap">
-                  <div><label className="block text-xs text-gray-500">Başlangıç</label>
-                    <input value={sfBas} onChange={e=>setSfBas(e.target.value)} placeholder="01.01.25" className="border rounded-xl px-3 py-1.5"/></div>
-                  <div><label className="block text-xs text-gray-500">Bitiş</label>
-                    <input value={sfBit} onChange={e=>setSfBit(e.target.value)} placeholder="31.12.25" className="border rounded-xl px-3 py-1.5"/></div>
-                  <div><label className="block text-xs text-gray-500">Plaka</label>
-                    <input value={sfPlaka} onChange={e=>setSfPlaka(e.target.value)} placeholder="34ABC123" className="border rounded-xl px-3 py-1.5 uppercase"/></div>
-                  <div><label className="block text-xs text-gray-500">Lastik Firması</label>
-                    <input value={sfFirma} onChange={e=>setSfFirma(e.target.value)} placeholder="Firma ara…" className="border rounded-xl px-3 py-1.5"/></div>
-                  <div><label className="block text-xs text-gray-500">Tür</label>
-                    <select value={sfTur} onChange={e=>setSfTur(e.target.value)} className="border rounded-xl px-3 py-1.5"><option value="">Hepsi</option><option value="Yaz">Yaz</option><option value="Kış">Kış</option></select></div>
-                  <div><label className="block text-xs text-gray-500">Ebat</label>
-                    <input value={sfEbat} onChange={e=>setSfEbat(e.target.value)} placeholder="205/55 R16" className="border rounded-xl px-3 py-1.5"/></div>
-                  <button onClick={()=>{setSfBas("");setSfBit("");setSfPlaka("");setSfFirma("");setSfTur("");setSfEbat("");}} className="px-3 py-1.5 rounded-xl border shadow-sm">Filtreyi Temizle</button>
-                  <button onClick={exportSiparisExcel} className="px-3 py-1.5 rounded-xl border shadow-sm">Excel'e Aktar</button>
-                </div>
-              </div>
-              {filtered.length===0 ? <p className="text-sm text-gray-600">Henüz sipariş yok.</p> :
-                <div className="overflow-auto">
-                  <table className="min-w-full text-sm">
-                    <thead><tr className="text-left border-b">
-                      <th className="py-2 pr-4">Tarih</th><th className="py-2 pr-4">Plaka</th><th className="py-2 pr-4">Ebat</th>
-                      <th className="py-2 pr-4">Araç KM</th><th className="py-2 pr-4">Firma</th><th className="py-2 pr-4">Tür</th><th className="py-2 pr-4">İsim Soyisim</th><th className="py-2 pr-4">İl</th><th className="py-2 pr-4">İlçe</th><th className="py-2 pr-4">İrtibat</th><th className="py-2 pr-4">E-posta</th><th className="py-2 pr-4">İşlem</th>
-                    </tr></thead>
-                    <tbody>
-                      {filtered.map(s=>(
-                        <tr key={s.id} className="border-b last:border-0">
-                          <td className="py-2 pr-4 whitespace-nowrap">{s.tarih}</td>
-                          <td className="py-2 pr-4 whitespace-nowrap"><button className="underline" onClick={()=>setSorguPlaka(s.plaka)}>{s.plaka}</button></td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{s.ebat}</td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{Number(s.arac_km||0).toLocaleString("tr-TR")}</td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{s.firma||""}</td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{s.tur}</td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{s.ad_soyad||""}</td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{s.il||""}</td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{s.ilce||""}</td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{s.irtibat_no||""}</td>
-                          <td className="py-2 pr-4 whitespace-nowrap">{window.emailNormalize(s.email||"")}</td>
-                          <td className="py-2 pr-4"><button onClick={()=>siparisSil(s.id)} className="px-2 py-1 rounded-lg border hover:shadow">Sil</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>}
-            </div>
-          </main>
-
-          <footer className="max-w-7xl mx-auto px-4 py-6 text-xs text-gray-500">
-            <p>Kış lastiği 1 defa; Yaz lastiği her 50.000 km dolumda 1 hak. Sınırsız durumda tahmini dönem KM=200.000.</p>
-          </footer>
-        </div>
-      );
-    }
-
-    function PreviewCard({temp, queryPlaka, onQueryChange, orderCounts}){
-      const valid = temp.kira_baslangic!=="—" && temp.kira_bitis!=="—" && temp.plaka;
-      return (
-        <div className="rounded-2xl border p-4 grid md:grid-cols-2 gap-4">
-          <div>
-            <div className="text-sm text-gray-500 mb-1">Önizleme</div>
-            <input value={queryPlaka} onChange={e=>onQueryChange(e.target.value.toUpperCase())}
-                   placeholder="PLAKA YAZIN (örn: 34ABC123)"
-                   className="w-full bg-transparent outline-none font-semibold text-xl uppercase tracking-wide border-b border-dashed focus:border-gray-400"/>
-            <div className="text-sm mt-1">{temp.firma_ad}</div>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-              <div><div className="text-gray-500">Başlangıç</div><div className="font-medium">{temp.kira_baslangic}</div></div>
-              <div><div className="text-gray-500">Bitiş</div><div className="font-medium">{temp.kira_bitis}</div></div>
-              <div><div className="text-gray-500">Yıllık KM</div><div className="font-medium">{temp.yillik_km==null?"Sınırsız":Number(temp.yillik_km).toLocaleString("tr-TR")}</div></div>
-              <div><div className="text-gray-500">Tahmini Dönem KM</div><div className="font-medium">{Number(temp.tahmini_km||0).toLocaleString("tr-TR")}</div></div>
-              <div><div className="text-gray-500">Kış Lastiği Hakkı</div><div className="font-medium">{valid?temp.kis_hakki:0}</div></div>
-              <div><div className="text-gray-500">Yaz Lastiği Hakkı</div><div className="font-medium">{valid?temp.yaz_hakki:0}</div></div>
-            </div>
-          </div>
-          <div className="self-center">
-            <div className="mt-0 p-3 bg-amber-50 rounded-xl border border-amber-200 text-sm">
-              <div className="font-semibold mb-1">Bu plaka için verilen siparişler</div>
-              <div className="flex gap-6">
-                <div>Kış: <span className="font-semibold">{orderCounts.kis}</span></div>
-                <div>Yaz: <span className="font-semibold">{orderCounts.yaz}</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-
-  <!-- Auth + Live Sync (APP KODUNA DOKUNMADAN EK) -->
   <style>
-    #authOverlay { position:fixed; inset:0; background:#f7f7f7; display:flex; align-items:center; justify-content:center; z-index:9999; }
-    #authBox { width:320px; background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.08); padding:22px; }
-    #authBox h3 { margin:0 0 12px; font:600 18px/1.2 system-ui, -apple-system, Segoe UI, Roboto; color:#111;}
-    #authBox input { width:100%; box-sizing:border-box; padding:10px 12px; margin:6px 0; border:1px solid #d0d7de; border-radius:8px; font-size:14px; }
-    #authBox button { width:100%; padding:10px 12px; margin-top:8px; border:0; border-radius:8px; background:#059669; color:#fff; font-weight:600; cursor:pointer; }
-    #authBox .err { color:#c1121f; font-size:12px; min-height:16px; margin-top:6px; }
-    #logoutBtn { position:fixed; right:14px; bottom:14px; background:#ef4444; color:#fff; border:0; border-radius:999px; padding:10px 14px; font-weight:700; z-index:9999; cursor:pointer; display:none; }
+    body{background:#f5f7f6}
+    .card{background:#fff;border-radius:16px;box-shadow:0 4px 18px rgba(0,0,0,.05)}
+    .btn{background:#0f8a5f;color:#fff;border-radius:10px;padding:.6rem 1rem}
+    .btn:hover{filter:brightness(.95)}
+    .btn-outline{border:1px solid #e5e7eb;border-radius:10px;padding:.5rem .9rem}
+    .input{border:1px solid #e5e7eb;border-radius:10px;padding:.45rem .6rem}
+    th{background:#0f8a5f;color:#fff;font-weight:600}
   </style>
-  <div id="authOverlay" style="display:flex;">
-    <div id="authBox">
-      <h3>Giriş</h3>
-      <input id="authEmail" type="email" placeholder="E-posta" autocomplete="username"/>
-      <input id="authPass" type="password" placeholder="Şifre" autocomplete="current-password"/>
-      <button id="authLogin">Giriş Yap</button>
-      <div class="err" id="authErr"></div>
-    </div>
-  </div>
-  <button id="logoutBtn">Çıkış</button>
 
+  <!-- Email normalizer: büyük/küçük harf + IDNA 'xn--' düzeltmesi -->
+  <script>
+  (function(){
+    function __pcDecodeLabel(label){
+      if (!label || label.slice(0,4)!=='xn--') return label;
+      var base=36,tmin=1,tmax=26,damp=700,initial_bias=72;
+      function digit(cp){return cp-48<10?cp-22:cp-65<26?cp-65:cp-97<26?cp-97:base}
+      function adapt(delta,numPoints,firstTime){
+        delta = firstTime ? Math.floor(delta/damp) : delta>>1;
+        delta += Math.floor(delta/numPoints);
+        var k=0; while (delta > (((base - tmin) * tmax) >> 1)) { delta = Math.floor(delta / (base - tmin)); k += base; }
+        return k + Math.floor(((base - tmin + 1) * delta) / (delta + 38));
+      }
+      var n=128,i=0,bias=initial_bias; var dash=label.lastIndexOf('-'); var output=[]; var idx=4;
+      if (dash>4){ for(var j=4;j<dash;j++) output.push(label.charCodeAt(j)); idx=dash+1; }
+      while(idx<label.length){
+        var oldi=i,w=1,k=base;
+        while(true){
+          if(idx>=label.length) return label;
+          var d=digit(label.charCodeAt(idx++));
+          i+=d*w; var t=k<=bias?1:(k>=bias+26?26:k-bias); if(d<t) break; w*=(base-t);
+        }
+        var outLen=output.length+1; bias=adapt(i-oldi,outLen,oldi===0); n+=Math.floor(i/outLen); i%=outLen; output.splice(i,0,n); i++;
+      }
+      return String.fromCharCode.apply(null, output);
+    }
+    window.emailNormalize = function(email){
+      try{
+        var s = String(email||'').trim().toLowerCase();
+        var at = s.indexOf('@'); if (at<0) return s;
+        var local = s.slice(0,at), domain = s.slice(at+1);
+        var uni = domain.split('.').map(__pcDecodeLabel).join('.');
+        try { uni = uni.normalize('NFC').replace(/i\u0307/g,'i'); } catch(e){}
+        return local + '@' + uni;
+      }catch(e){ return String(email||'').trim().toLowerCase(); }
+    };
+  })();
+  </script>
+</head>
+<body>
+
+  <!-- ÜST BAR -->
+  <header class="bg-emerald-600 text-white">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <h1 class="text-xl font-semibold">SEKAR FİLO LASTİK HAK TAKİP</h1>
+      <div class="flex gap-2">
+        <button id="btnExportExcel" class="btn-outline bg-white/0 text-white hover:bg-white/10">Excel'e Aktar</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto p-4 space-y-6">
+    <!-- FORM + ÖNİZLEME -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <!-- FORM -->
+      <div class="card p-4">
+        <h2 class="text-lg font-semibold mb-2">Lastik Siparişi</h2>
+        <form id="orderForm" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm text-gray-600">Lastik Ebatı</label>
+            <select id="ebat" class="input w-full mt-1">
+              <option value="">Seçiniz</option>
+              <!-- Popüler ebatlar -->
+              <option>205/55 R16</option><option>195/65 R15</option><option>185/65 R15</option>
+              <option>225/45 R17</option><option>225/40 R18</option><option>235/45 R18</option>
+              <option>255/45 R19</option><option>225/55 R17</option><option>215/60 R16</option>
+              <option>155/80 R13</option><option>175/70 R13</option><option>175/65 R14</option>
+              <!-- İsteğe göre geniş liste eklersin -->
+            </select>
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">Plaka</label>
+            <input id="plaka" class="input w-full mt-1 uppercase" placeholder="34ABC123" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">Araç KM</label>
+            <input id="aracKm" type="number" class="input w-full mt-1" placeholder="120000" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">Lastik Firması</label>
+            <input id="firma" class="input w-full mt-1" placeholder="Örn: NG FİLO LASTİK" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">Tür</label>
+            <select id="tur" class="input w-full mt-1">
+              <option>Yaz</option>
+              <option>Kış</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">İsim Soyisim</label>
+            <input id="adSoyad" class="input w-full mt-1" placeholder="Örn: Ali Veli" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">İl</label>
+            <select id="il" class="input w-full mt-1">
+              <option value="">İl (Seçin)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">İlçe</label>
+            <input id="ilce" class="input w-full mt-1" placeholder="İlçe" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">İrtibat No</label>
+            <input id="irtibat" class="input w-full mt-1" placeholder="5xx xxx xx xx" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">E-posta</label>
+            <input id="email" type="email" class="input w-full mt-1" placeholder="ornek@mail.com" />
+          </div>
+
+          <div class="md:col-span-2">
+            <button class="btn w-full" type="submit">Sipariş Ekle</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ÖNİZLEME -->
+      <div class="card p-4">
+        <h2 class="text-lg font-semibold mb-2">Canlı Önizleme</h2>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2">
+            <span class="text-gray-500 w-32">Plaka</span>
+            <span id="pvPlaka" class="font-semibold">—</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-gray-500 w-32">Ebat</span>
+            <span id="pvEbat">—</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-gray-500 w-32">Firma</span>
+            <span id="pvFirma">—</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-gray-500 w-32">Tür</span>
+            <span id="pvTur">—</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-gray-500 w-32">İsim Soyisim</span>
+            <span id="pvAdSoyad">—</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-gray-500 w-32">İl/İlçe</span>
+            <span id="pvIl">—</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-gray-500 w-32">E-posta</span>
+            <span id="pvEmail">—</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FİLTRE + TABLO -->
+    <section class="card p-4">
+      <div class="flex flex-wrap items-end gap-3 mb-3">
+        <div>
+          <label class="text-xs text-gray-500">Başlangıç</label>
+          <input id="fBas" class="input" placeholder="01.01.25" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-500">Bitiş</label>
+          <input id="fBit" class="input" placeholder="31.12.25" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-500">Plaka</label>
+          <input id="fPlaka" class="input uppercase" placeholder="34ABC123" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-500">Firma</label>
+          <input id="fFirma" class="input" placeholder="Firma ara…" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-500">Tür</label>
+          <select id="fTur" class="input">
+            <option value="">Hepsi</option>
+            <option>Yaz</option>
+            <option>Kış</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500">Ebat</label>
+          <input id="fEbat" class="input" placeholder="205/55 R16" />
+        </div>
+        <button id="btnFilterClear" class="btn-outline">Filtreyi Temizle</button>
+      </div>
+
+      <div class="overflow-auto border rounded-xl">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr>
+              <th class="py-2 px-3 text-left">Tarih</th>
+              <th class="py-2 px-3 text-left">Plaka</th>
+              <th class="py-2 px-3 text-left">Ebat</th>
+              <th class="py-2 px-3 text-left">Araç KM</th>
+              <th class="py-2 px-3 text-left">Firma</th>
+              <th class="py-2 px-3 text-left">Tür</th>
+              <th class="py-2 px-3 text-left">İsim Soyisim</th>
+              <th class="py-2 px-3 text-left">İl</th>
+              <th class="py-2 px-3 text-left">İlçe</th>
+              <th class="py-2 px-3 text-left">İrtibat</th>
+              <th class="py-2 px-3 text-left">E-posta</th>
+              <th class="py-2 px-3 text-left">İşlem</th>
+            </tr>
+          </thead>
+          <tbody id="tblBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Firebase (module) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import {
+      getFirestore, collection, addDoc, onSnapshot, orderBy, query,
+      serverTimestamp, deleteDoc, doc
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // --- SENİN VERDİĞİN CONFIG ---
+    // === FIREBASE CONFIG (sizin verdiğiniz) ===
     const firebaseConfig = {
       apiKey: "AIzaSyB-xEmeTVN8oiB4FZzV4UpJpAHkyDHYF4U",
       authDomain: "sekar-filo.firebaseapp.com",
@@ -627,97 +260,177 @@ const emailToUnicode = (email) => {
     };
 
     const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db   = getFirestore(app);
+    const db  = getFirestore(app);
 
-    // ---- Basit Login UI ----
-    const $ = sel => document.querySelector(sel);
-    $("#authLogin").addEventListener("click", async ()=>{
-      $("#authErr").textContent = "";
-      try {
-        await signInWithEmailAndPassword(auth, $("#authEmail").value.trim(), $("#authPass").value);
-      } catch (e) {
-        $("#authErr").textContent = e.message || "Giriş başarısız";
-      }
+    // ====== Yardımcılar ======
+    const FMT = /^(\d{2})\.(\d{2})\.(\d{2})$/;
+    const pad2 = n => String(n).padStart(2,"0");
+    const today = () => {
+      const d = new Date();
+      return `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${String(d.getFullYear()).slice(-2)}`
+    };
+    const toDate = s => {
+      const m = FMT.exec(String(s||"")); if(!m) return null;
+      const d = new Date(`${2000+ +m[3]}-${m[2]}-${m[1]}T00:00:00`); return isNaN(d)?null:d;
+    };
+
+    // ====== İLLER ======
+    const TR_ILLER=["Adana","Adıyaman","Afyonkarahisar","Ağrı","Aksaray","Amasya","Ankara","Antalya","Ardahan","Artvin","Aydın","Balıkesir","Bartın","Batman","Bayburt","Bilecik","Bingöl","Bitlis","Bolu","Burdur","Bursa","Çanakkale","Çankırı","Çorum","Denizli","Diyarbakır","Düzce","Edirne","Elazığ","Erzincan","Erzurum","Eskişehir","Gaziantep","Giresun","Gümüşhane","Hakkari","Hatay","Iğdır","Isparta","İstanbul","İzmir","Kahramanmaraş","Karabük","Karaman","Kars","Kastamonu","Kayseri","Kırıkkale","Kırklareli","Kırşehir","Kilis","Kocaeli","Konya","Kütahya","Malatya","Manisa","Mardin","Mersin","Muğla","Muş","Nevşehir","Niğde","Ordu","Osmaniye","Rize","Sakarya","Samsun","Siirt","Sinop","Sivas","Şanlıurfa","Şırnak","Tekirdağ","Tokat","Trabzon","Tunceli","Uşak","Van","Yalova","Yozgat","Zonguldak"];
+    const ilSel = document.getElementById("il");
+    TR_ILLER.forEach(il=>{ const o=document.createElement("option"); o.value=o.textContent=il; ilSel.appendChild(o); });
+
+    // ====== Form ve Önizleme ======
+    const frm = document.getElementById("orderForm");
+    const ebat = document.getElementById("ebat");
+    const plaka = document.getElementById("plaka");
+    const aracKm = document.getElementById("aracKm");
+    const firma = document.getElementById("firma");
+    const tur   = document.getElementById("tur");
+    const adSoyad = document.getElementById("adSoyad");
+    const il    = document.getElementById("il");
+    const ilce  = document.getElementById("ilce");
+    const irtibat = document.getElementById("irtibat");
+    const email = document.getElementById("email");
+
+    const pvPlaka = document.getElementById("pvPlaka");
+    const pvEbat  = document.getElementById("pvEbat");
+    const pvFirma = document.getElementById("pvFirma");
+    const pvTur   = document.getElementById("pvTur");
+    const pvAdSoyad = document.getElementById("pvAdSoyad");
+    const pvIl    = document.getElementById("pvIl");
+    const pvEmail = document.getElementById("pvEmail");
+
+    function syncPreview(){
+      pvPlaka.textContent = (plaka.value||"—").toUpperCase();
+      pvEbat.textContent  = ebat.value||"—";
+      pvFirma.textContent = (firma.value||"—").toUpperCase();
+      pvTur.textContent   = tur.value||"—";
+      pvAdSoyad.textContent = (adSoyad.value||"—").toUpperCase();
+      pvIl.textContent    = (il.value?`${il.value}`:"—") + (ilce.value?` / ${ilce.value}`:"");
+      pvEmail.textContent = email.value?window.emailNormalize(email.value):"—";
+    }
+    [ebat,plaka,aracKm,firma,tur,adSoyad,il,ilce,irtibat,email].forEach(el=>el.addEventListener("input",syncPreview));
+    syncPreview();
+
+    // ====== Kayıt ekle ======
+    frm.addEventListener("submit", async (ev)=>{
+      ev.preventDefault();
+      if(!ebat.value) return alert("Ebat seçiniz");
+      if(!plaka.value) return alert("Plaka giriniz");
+      if(!firma.value) return alert("Firma giriniz");
+
+      const data = {
+        tarih: today(),
+        plaka: String(plaka.value||"").toUpperCase(),
+        ebat:  String(ebat.value||""),
+        arac_km: Number(aracKm.value||0),
+        firma: String(firma.value||"").toUpperCase(),
+        tur: String(tur.value||"").toUpperCase(),
+        ad_soyad: String(adSoyad.value||"").toUpperCase(),
+        il: String(il.value||"").toUpperCase(),
+        ilce: String(ilce.value||"").toUpperCase(),
+        irtibat_no: String(irtibat.value||""),
+        email: window.emailNormalize(email.value||""),
+        createdAt: serverTimestamp()
+      };
+
+      try{
+        await addDoc(collection(db, "siparisler"), data);
+        frm.reset(); syncPreview();
+      }catch(e){ console.error(e); alert("Kayıt eklenemedi: "+e.message); }
     });
-    $("#logoutBtn").addEventListener("click", ()=>signOut(auth));
 
-    const LS_KEY = "lastik_takip_v1";
-    let syncing = false;
-    let lastLocal = "";
+    // ====== Liste (Realtime) ======
+    const tb = document.getElementById("tblBody");
+    let allRows = [];
 
-    function readLocal(){
-      try{ return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); }catch{ return {}; }
-    }
-    function writeLocal(obj){
-      localStorage.setItem(LS_KEY, JSON.stringify(obj));
-      // Uygulamanın tabloyu görmesi için sayfayı tazele (koduna dokunmuyoruz)
-      location.reload();
-    }
+    const q = query(collection(db,"siparisler"), orderBy("createdAt","desc"));
+    onSnapshot(q, (snap)=>{
+      allRows = [];
+      snap.forEach(d=>{
+        const r = d.data(); r.id = d.id;
+        allRows.push(r);
+      });
+      render();
+    });
 
-    async function snapshotToLocal(){
-      const snap = await getDocs(collection(db,"siparisler"));
-      const arr = [];
-      snap.forEach(d=> arr.push(d.data()));
-      const cur = readLocal();
-      cur.siparisler = arr.sort((a,b)=> (b.id||0)-(a.id||0));
-      writeLocal(cur);
-    }
+    // ====== Filtreler ======
+    const fBas=document.getElementById("fBas");
+    const fBit=document.getElementById("fBit");
+    const fPlaka=document.getElementById("fPlaka");
+    const fFirma=document.getElementById("fFirma");
+    const fTur=document.getElementById("fTur");
+    const fEbat=document.getElementById("fEbat");
+    [fBas,fBit,fPlaka,fFirma,fTur,fEbat].forEach(el=>el.addEventListener("input",render));
+    document.getElementById("btnFilterClear").onclick=()=>{
+      [fBas,fBit,fPlaka,fFirma,fTur,fEbat].forEach(el=>el.value=""); render();
+    };
 
-    async function pushLocalToCloud(){
-      const data = readLocal();
-      const local = Array.isArray(data.siparisler)? data.siparisler : [];
-      // Mevcut bulut id seti
-      const cloud = await getDocs(collection(db,"siparisler"));
-      const cloudIds = new Set(); cloud.forEach(d=>cloudIds.add(String(d.id)));
-      const cloudMap = new Map(); cloud.forEach(d=>cloudMap.set(String(d.id), d.data()));
+    function render(){
+      const s=toDate(fBas.value), e=toDate(fBit.value);
+      const N=x=>String(x||"").toUpperCase();
+      const Fpl=N(fPlaka.value), Ffi=N(fFirma.value), Feb=N(fEbat.value), Ft=N(fTur.value);
 
-      // Ekle/Güncelle
-      for(const s of local){
-        const sid = String(s.id);
-        await setDoc(doc(db,"siparisler", sid), {...s, updatedAt: serverTimestamp()});
-        cloudIds.delete(sid);
-      }
-      // Local'de artık olmayanlar: sil
-      for(const leftoverId of cloudIds){
-        await deleteDoc(doc(db,"siparisler", leftoverId)).catch(()=>{});
-      }
-    }
-
-    async function startLive(){
-      // İlk senkron: buluttan yerel
-      await snapshotToLocal();
-      // Canlı dinleme: bulutta değişiklik olursa yereli yenile
-      onSnapshot(collection(db,"siparisler"), ()=>{
-        if (syncing) return;
-        snapshotToLocal();
+      const rows = allRows.filter(x=>{
+        const d=toDate(x.tarih); if(!d) return false;
+        if(s && d<s) return false; if(e && d>e) return false;
+        if(Fpl && !N(x.plaka).includes(Fpl)) return false;
+        if(Ffi && !N(x.firma).includes(Ffi)) return false;
+        if(Ft  && N(x.tur)!==Ft) return false;
+        if(Feb && !N(x.ebat).includes(Feb)) return false;
+        return true;
       });
 
-      // Yerelde değişiklik izleme (polling)
-      setInterval(async ()=>{
-        const now = localStorage.getItem(LS_KEY) || "";
-        if (now !== lastLocal){
-          lastLocal = now;
+      tb.innerHTML="";
+      rows.forEach(r=>{
+        const tr=document.createElement("tr");
+        tr.className="border-b last:border-0";
+        tr.innerHTML=`
+          <td class="px-3 py-2 whitespace-nowrap">${r.tarih||""}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.plaka||""}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.ebat||""}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${Number(r.arac_km||0).toLocaleString("tr-TR")}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.firma||""}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.tur||""}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.ad_soyad||""}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.il||""}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.ilce||""}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${r.irtibat_no||""}</td>
+          <td class="px-3 py-2 whitespace-nowrap">${window.emailNormalize(r.email||"")}</td>
+          <td class="px-3 py-2">
+            <button class="btn-outline" data-id="${r.id}">Sil</button>
+          </td>`;
+        tb.appendChild(tr);
+      });
+
+      // Silme
+      tb.querySelectorAll("button[data-id]").forEach(btn=>{
+        btn.onclick=async()=>{
+          if(!confirm("Kaydı silmek istiyor musunuz?")) return;
           try{
-            syncing = true;
-            await pushLocalToCloud();
-          } finally {
-            syncing = false;
-          }
-        }
-      }, 1000);
+            await deleteDoc(doc(db,"siparisler",btn.dataset.id));
+          }catch(e){ alert("Silinemedi: "+e.message); }
+        };
+      });
     }
 
-    onAuthStateChanged(auth, user=>{
-      if(user){
-        $("#authOverlay").style.display = "none";
-        $("#logoutBtn").style.display = "inline-flex";
-        startLive();
-      }else{
-        $("#authOverlay").style.display = "flex";
-        $("#logoutBtn").style.display = "none";
-      }
-    });
+    // ====== Excel'e Aktar ======
+    document.getElementById("btnExportExcel").onclick=()=>{
+      // tabloda görünen (filtreli) satırları topla
+      const rows = [...tb.querySelectorAll("tr")].map(tr=>{
+        const tds=[...tr.children].map(td=>td.textContent);
+        return {
+          "Tarih": tds[0], "Plaka": tds[1], "Ebat": tds[2], "Araç KM": tds[3],
+          "Firma": tds[4], "Tür": tds[5], "İsim Soyisim": tds[6], "İl": tds[7],
+          "İlçe": tds[8], "İrtibat": tds[9], "E-posta": tds[10]
+        };
+      });
+      if(!rows.length) return alert("Aktarılacak satır yok.");
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Siparişler");
+      XLSX.writeFile(wb, "lastik_siparisleri.xlsx");
+    };
   </script>
 </body>
 </html>
