@@ -77,7 +77,7 @@
 
     // ----------------- Yardımcılar -----------------
     const LS_KEY  = "lastik_takip_v1";
-    const FMT = /^(\d{2})\.(\d{2})\.(\d{2})$/; // NOTE: doubled backslashes here because this HTML was built via Python; Babel will handle correctly.
+    const FMT = /^(\d{2})\.(\d{2})\.(\d{2})$/;
     const pad2 = n => String(n).padStart(2,"0");
     const fmt  = d => `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${pad2(d.getFullYear()%100)}`;
     const today= () => fmt(new Date());
@@ -113,6 +113,10 @@
     function csvSafe(v){
       const s = String(v ?? '');
       return (/^[=+@-]/).test(s) ? "'" + s : s;
+    }
+    // TR normalize: 'KIŞ', 'Kış', 'kis' -> 'kis'
+    function normalizeTR(s){
+      try{ return String(s||'').toLowerCase().normalize('NFC').replace(/ş/g,'s').replace(/ı/g,'i').trim(); }catch{ return String(s||'').toLowerCase().trim(); }
     }
 
     // ----------------- Uygulama -----------------
@@ -214,8 +218,6 @@
 
       // Hesaplar
       const tahminiKm = a => a.yillik_km_hakki===null ? 200000 : Math.round(prorata(a.yillik_km_hakki,a.kira_baslangic,a.kira_bitis));
-      const yazHakki = a => Math.floor(Math.max(0,tahminiKm(a))/50000);
-      const kisHakki = _ => 1;
 
       // Dışa ve içe aktarım
       function exportCSV(){
@@ -312,7 +314,7 @@
         if(!p) return {yaz,kis};
         for(const s of siparisler){
           if(String(s.plaka).toUpperCase()===p){
-            (String(s.tur||"Yaz").toLowerCase()==="kış"||String(s.tur||"").toLowerCase()==="kis")? kis++ : yaz++;
+            normalizeTR(s.tur||'Yaz')==='kis' ? kis++ : yaz++;
           }
         }
         return {yaz,kis};
