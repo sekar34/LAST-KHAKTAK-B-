@@ -167,6 +167,8 @@
 
       const fileRef=useRef(null); const xlsxRef=useRef(null);
 
+      const [userInfo,setUserInfo]=useState({email:"",name:""});
+
       const firmaMap = useMemo(()=> new Map(firmalar.map(f=>[f.id,f.ad])), [firmalar]);
       const seciliArac = useMemo(()=>{
         const p=(sorguPlaka||"").trim().toUpperCase();
@@ -197,7 +199,9 @@
           il:(sIl||"").toUpperCase(),
           ilce:(sIlce||"").toUpperCase(),
           irtibat_no:sIrtibat,
-          email: window.emailNormalize(sEmail)
+          email: window.emailNormalize(sEmail),
+          createdBy: userInfo.email || "",
+          createdByName: userInfo.name || ""
         };
         // Yerel state’e önden ekle (optimistic)
         setSiparisler(prev=>[row,...prev]);
@@ -215,9 +219,6 @@
         // Firestore’dan da sil
         try{ window.deleteOrderById && window.deleteOrderById(id); }catch{}
       }
-
-      // Hesaplar
-      const tahminiKm = a => a.yillik_km_hakki===null ? 200000 : Math.round(prorata(a.yillik_km_hakki,a.kira_baslangic,a.kira_bitis));
 
       // Dışa ve içe aktarım
       function exportCSV(){
@@ -326,13 +327,19 @@
           <header className="sticky top-0 z-10 bg-emerald-600 text-white">
             <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
               <h1 className="text-2xl font-bold">SEKAR FİLO LASTİK HAK TAKİP</h1>
-              <div className="flex gap-2">
-                <button onClick={exportCSV} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">CSV Dışa Aktar</button>
-                <button onClick={exportJSON} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">JSON Dışa Aktar</button>
-                <input ref={fileRef} type="file" accept="application/json" onChange={importJSON} className="hidden"/>
-                <button onClick={()=>fileRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">JSON İçe Al</button>
-                <input ref={xlsxRef} type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden"/>
-                <button onClick={()=>xlsxRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Excel İçe Al</button>
+              <div className="flex items-center gap-3">
+                {userInfo.email && (
+                  <div className="text-xs bg-white/15 px-3 py-1.5 rounded-xl">{userInfo.name||userInfo.email}</div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={exportCSV} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">CSV</button>
+                  <button onClick={exportJSON} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">JSON</button>
+                  <input ref={fileRef} type="file" accept="application/json" onChange={importJSON} className="hidden"/>
+                  <button onClick={()=>fileRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">JSON İçe Al</button>
+                  <input ref={xlsxRef} type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden"/>
+                  <button onClick={()=>xlsxRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Excel İçe Al</button>
+                  <button onClick={()=>window.signOut && window.signOut()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Çıkış</button>
+                </div>
               </div>
             </div>
           </header>
@@ -640,14 +647,16 @@
   const auth = firebase.auth();
   const db   = firebase.firestore();
   const ORD  = db.collection(COLL);
+  const USERS = db.collection("users");
 
   // Basit giriş kutusu (yalnızca @sekarfilo.com.tr)
   const ov = document.createElement('div');
   ov.style.cssText="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.08);backdrop-filter:blur(2px);z-index:99999";
-  ov.innerHTML = '<div style="background:#fff;padding:18px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);width:320px;font-family:system-ui">'+
+  ov.innerHTML = '<div style="background:#fff;padding:18px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);width:340px;font-family:system-ui">'+
     '<h3 style="margin:0 0 8px;font-size:18px">Giriş Yap</h3>'+
     '<input id="__m" type="email" placeholder="kisi@sekarfilo.com.tr" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin:6px 0">'+
     '<input id="__p" type="password" placeholder="Şifre" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin:6px 0">'+
+    '<input id="__n" type="text" placeholder="Kullanıcı Adı (ilk kayıt için)" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin:6px 0">'+
     '<button id="__l" style="width:100%;padding:10px;border:0;border-radius:8px;background:#0ea675;color:#fff">Giriş</button>'+
     '<button id="__s" style="width:100%;padding:10px;border:0;border-radius:8px;background:#334155;color:#fff;margin-top:6px">Hesap Oluştur</button>'+
     '<div id="__e" style="color:#d92d20;font-size:12px;min-height:16px;margin-top:6px"></div>'+
@@ -657,6 +666,20 @@
 
   function showLogin(show){ ov.style.display = show?'flex':'none'; }
   function err(t){ const el=document.getElementById('__e'); if(el) el.textContent=t||''; }
+
+  async function createUserProfile(user, displayName){
+    try{
+      if (displayName) { await user.updateProfile({ displayName }); }
+      await USERS.doc(user.uid).set({
+        uid: user.uid,
+        email: user.email,
+        displayName: displayName || user.displayName || "",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }catch(e){
+      console.warn("profile error:", e);
+    }
+  }
 
   document.addEventListener('click', function(e){
     if(e.target && e.target.id==='__l'){
@@ -668,8 +691,12 @@
     if(e.target && e.target.id==='__s'){
       const m=document.getElementById('__m').value.trim();
       const p=document.getElementById('__p').value;
+      const n=document.getElementById('__n').value.trim();
       if(!/@sekarfilo\.com\.tr$/i.test(m)) return err("Sadece @sekarfilo.com.tr");
-      auth.createUserWithEmailAndPassword(m,p).catch(x=>err(x.message||String(x)));
+      if(!n) return err("Lütfen kullanıcı adı girin");
+      auth.createUserWithEmailAndPassword(m,p)
+        .then(cred => createUserProfile(cred.user, n))
+        .catch(x=>err(x.message||String(x)));
     }
   }, true);
 
@@ -680,7 +707,7 @@
   }
 
   // Real-time dinleyici: tüm kullanıcılara aynı listeyi anında verir
-  function subscribeOrders(){
+  function subscribeOrders(setHeaderUser){
     return ORD.orderBy("createdAt","desc").onSnapshot(snap=>{
       const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }));
       const cur  = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
@@ -723,6 +750,8 @@
       irtibat_no: row.irtibat_no||'',
       email: window.emailNormalize ? window.emailNormalize(row.email||'') : (row.email||''),
       createdBy: user.email,
+      createdByUid: user.uid,
+      createdByName: user.displayName || (user.email ? user.email.split('@')[0] : ''),
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     const key = h(obj);
@@ -743,18 +772,37 @@
   // Global export (App çağıracak)
   window.pushOrder = pushOrder;
   window.deleteOrderById = deleteOrderById;
+  window.signOut = () => auth.signOut().catch(()=>{});
 
   // Auth state
   let unsub = null;
-  auth.onAuthStateChanged(user=>{
+  auth.onAuthStateChanged(async user=>{
     if(user && /@sekarfilo\.com\.tr$/i.test(user.email)){
       showLogin(false);
+      // kullanıcı bilgilerini header'a yazmak için bir CustomEvent gönder
+      const info = {email:user.email, name: user.displayName || user.email.split('@')[0]};
+      window.dispatchEvent(new CustomEvent('header-user', { detail: info }));
       if (unsub) unsub();
       unsub = subscribeOrders();
+      // kullanıcı belgesini de güncel tut
+      try{ await USERS.doc(user.uid).set({email:user.email, displayName:info.name, lastLogin: firebase.firestore.FieldValue.serverTimestamp()}, {merge:true}); }catch{}
     }else{
       showLogin(true);
+      window.dispatchEvent(new CustomEvent('header-user', { detail: {email:"", name:""} }));
       if (unsub) { unsub(); unsub=null; }
     }
+  });
+
+  // React tarafında header'da göstermek için
+  window.addEventListener('header-user', (e)=>{
+    try{
+      const detail = e.detail || {};
+      // App içindeki state'i güncellemek için global değişken yerine LS sinyali yapıyoruz
+      const cur = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+      cur.__user = detail;
+      localStorage.setItem(LS_KEY, JSON.stringify(cur));
+      window.dispatchEvent(new Event('orders-updated'));
+    }catch{}
   });
 
 })();
