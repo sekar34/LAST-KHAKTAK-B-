@@ -166,6 +166,7 @@
       const [sinirsiz,setSinirsiz]=useState(false);
 
       const fileRef=useRef(null); const xlsxRef=useRef(null);
+      const siparisXlsxRef=useRef(null); // Yeni: sipariş excel
 
       const [userInfo,setUserInfo]=useState({email:"",name:""});
 
@@ -272,6 +273,50 @@
         }catch(e){ alert("Excel okunamadı: "+e.message) } finally{ ev.target.value=""; } }; fr.readAsArrayBuffer(f);
       }
 
+      // ✅ Yeni: Siparişleri Excel'den yükleme
+      function importSiparisXLSX(ev){
+        const f=ev.target.files?.[0]; if(!f) return;
+        const fr=new FileReader();
+        fr.onload=()=>{ try{
+          const wb=XLSX.read(new Uint8Array(fr.result),{type:"array"});
+          const wsS=wb.Sheets["Siparisler"]||wb.Sheets["SİPARİŞLER"]||wb.Sheets["siparisler"];
+          if(!wsS){ alert("Excel'de 'Siparisler' sayfası bulunamadı."); return; }
+          const raw = XLSX.utils.sheet_to_json(wsS,{defval:""});
+          let ok=0, fail=0;
+          const normalizeTur = (v)=> {
+            const s=String(v||"").trim();
+            if(!s) return "";
+            const n=s.toLowerCase().normalize('NFC').replace(/ı/g,'i');
+            if(n.startsWith("k")) return "KIŞ";
+            return "YAZ";
+          };
+          const toInt=(v)=>{ try{ const n=Number.parseInt(String(v).replace(/\D/g,'')); return Number.isFinite(n)?n:0; }catch{ return 0; } };
+          for(const r of raw){
+            try{
+              const row = {
+                tarih: normExcelDate(r["Tarih"]),
+                plaka: String(r["Plaka"]||"").trim().toUpperCase(),
+                ebat: String(r["Ebat"]||"").trim(),
+                arac_km: toInt(r["Araç KM"]),
+                firma: String(r["Firma"]||"").trim().toUpperCase(),
+                tur: normalizeTur(r["Tür"]),
+                ad_soyad: String(r["İsim Soyisim"]||"").trim().toUpperCase(),
+                il: String(r["İl"]||"").trim().toUpperCase(),
+                ilce: String(r["İlçe"]||"").trim(),
+                irtibat_no: String(r["İrtibat"]||"").trim(),
+                email: window.emailNormalize ? window.emailNormalize(r["E-posta"]||"") : String(r["E-posta"]||"").trim()
+              };
+              if(!row.tarih || !row.plaka || !row.ebat){ fail++; continue; }
+              window.pushOrder && window.pushOrder(row);
+              ok++;
+            }catch{ fail++; }
+          }
+          alert(`Yükleme tamamlandı. Başarılı: ${ok}, Hatalı: ${fail}`);
+        }catch(e){ alert("Excel okunamadı: "+e.message) }
+        finally{ ev.target.value=""; } };
+        fr.readAsArrayBuffer(f);
+      }
+
       // Sipariş filtreleri
       const [sfBas,setSfBas]=useState(""),[sfBit,setSfBit]=useState(""),[sfPlaka,setSfPlaka]=useState(""),
             [sfFirma,setSfFirma]=useState(""),[sfTur,setSfTur]=useState(""),[sfEbat,setSfEbat]=useState("");
@@ -321,6 +366,33 @@
         return {yaz,kis};
       },[sorguPlaka,siparisler]);
 
+      // Düzenleme modal state
+      const [editOpen,setEditOpen]=useState(false);
+      const [editRow,setEditRow]=useState(null);
+      function openEdit(row){ setEditRow({...row}); setEditOpen(true); }
+      function closeEdit(){ setEditOpen(false); setEditRow(null); }
+      async function saveEdit(){
+        if(!editRow?.id) return;
+        const patch = {
+          tarih: editRow.tarih,
+          plaka: String(editRow.plaka||"").toUpperCase(),
+          ebat: String(editRow.ebat||""),
+          arac_km: Number.parseInt(editRow.arac_km||0)||0,
+          firma: String(editRow.firma||"").toUpperCase(),
+          tur: String(editRow.tur||"").toUpperCase(),
+          ad_soyad: String(editRow.ad_soyad||"").toUpperCase(),
+          il: String(editRow.il||"").toUpperCase(),
+          ilce: String(editRow.ilce||""),
+          irtibat_no: String(editRow.irtibat_no||""),
+          email: window.emailNormalize ? window.emailNormalize(editRow.email||"") : (editRow.email||"")
+        };
+        try{
+          window.updateOrderById && await window.updateOrderById(editRow.id, patch);
+          setSiparisler(prev=>prev.map(x=>x.id===editRow.id?{...x,...patch}:x));
+          closeEdit();
+        }catch(e){ alert("Güncellenemedi: "+(e.message||e)); }
+      }
+
       // --------------- UI ---------------
       return (
         <div className="min-h-screen">
@@ -338,6 +410,8 @@
                   <button onClick={()=>fileRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">JSON İçe Al</button>
                   <input ref={xlsxRef} type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden"/>
                   <button onClick={()=>xlsxRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Excel İçe Al</button>
+                  <input ref={siparisXlsxRef} type="file" accept=".xlsx,.xls" onChange={importSiparisXLSX} className="hidden"/>
+                  <button onClick={()=>siparisXlsxRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Excel’den Sipariş Yükle</button>
                   <button onClick={()=>window.signOut && window.signOut()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Çıkış</button>
                 </div>
               </div>
@@ -518,9 +592,20 @@
                     kira_baslangic: seciliArac ? seciliArac.kira_baslangic : (baslangic || "—"),
                     kira_bitis: seciliArac ? seciliArac.kira_bitis : (bitis || "—"),
                     yillik_km: seciliArac ? (seciliArac.yillik_km_hakki===null?null:seciliArac.yillik_km_hakki) : (sinirsiz?null:(Number.parseInt(yillikKm)||0)),
-                    tahmini_km: (()=>{ const s=seciliArac?seciliArac.kira_baslangic:baslangic, e=seciliArac?seciliArac.kira_bitis:bitis, y=seciliArac?seciliArac.yillik_km_hakki:(sinirsiz?null:(Number.parseInt(yillikKm)||0)); return y===null?200000:Math.round(prorata(y,s||"",e||"")); })(),
+                    tahmini_km: (()=>{
+                      const s=seciliArac?seciliArac.kira_baslangic:baslangic,
+                            e=seciliArac?seciliArac.kira_bitis:bitis,
+                            y=seciliArac?seciliArac.yillik_km_hakki:(sinirsiz?null:(Number.parseInt(yillikKm)||0));
+                      return y===null?200000:Math.round(prorata(y,s||"",e||""));
+                    })(),
                     kis_hakki: (seciliArac?1:(baslangic&&bitis?1:0)),
-                    yaz_hakki: (()=>{ const s=seciliArac?seciliArac.kira_baslangic:baslangic, e=seciliArac?seciliArac.kira_bitis:bitis, y=seciliArac?seciliArac.yillik_km_hakki:(sinirsiz?null:(Number.parseInt(yillikKm)||0)); const t=(y===null)?200000:Math.round(prorata(y,s||"",e||"")); return Math.floor(Math.max(0,t)/50000); })(),
+                    yaz_hakki: (()=>{
+                      const s=seciliArac?seciliArac.kira_baslangic:baslangic,
+                            e=seciliArac?seciliArac.kira_bitis:bitis,
+                            y=seciliArac?seciliArac.yillik_km_hakki:(sinirsiz?null:(Number.parseInt(yillikKm)||0));
+                      const t=(y===null)?200000:Math.round(prorata(y,s||"",e||""));
+                      return Math.floor(Math.max(0,t)/50000);
+                    })(),
                   }}
                   queryPlaka={sorguPlaka}
                   onQueryChange={setSorguPlaka}
@@ -571,7 +656,12 @@
                           <td className="py-2 pr-4 whitespace-nowrap">{s.ilce||""}</td>
                           <td className="py-2 pr-4 whitespace-nowrap">{s.irtibat_no||""}</td>
                           <td className="py-2 pr-4 whitespace-nowrap">{window.emailNormalize(s.email||"")}</td>
-                          <td className="py-2 pr-4"><button onClick={()=>siparisSil(s.id)} className="px-2 py-1 rounded-lg border hover:shadow">Sil</button></td>
+                          <td className="py-2 pr-4">
+                            <div className="flex gap-2">
+                              <button onClick={()=>openEdit(s)} className="px-2 py-1 rounded-lg border hover:shadow">Düzenle</button>
+                              <button onClick={()=>siparisSil(s.id)} className="px-2 py-1 rounded-lg border hover:shadow">Sil</button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -583,6 +673,48 @@
           <footer className="max-w-7xl mx-auto px-4 py-6 text-xs text-gray-500">
             <p>Kış lastiği 1 defa; Yaz lastiği her 50.000 km dolumda 1 hak. Sınırsız durumda tahmini dönem KM=200.000.</p>
           </footer>
+
+          {/* Düzenleme Modalı */}
+          {editOpen && (
+            <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-3">
+              <div className="bg-white rounded-2xl shadow-lg p-4 w-full max-w-3xl">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-lg font-semibold">Siparişi Düzenle</div>
+                  <button onClick={closeEdit} className="px-2 py-1 rounded-lg border">Kapat</button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                  <div><label className="block text-xs text-gray-600">Tarih</label>
+                    <input value={editRow.tarih||""} onChange={e=>setEditRow(r=>({...r,tarih:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">Plaka</label>
+                    <input value={editRow.plaka||""} onChange={e=>setEditRow(r=>({...r,plaka:e.target.value.toUpperCase()}))} className="border rounded-lg px-2 py-1 uppercase"/></div>
+                  <div><label className="block text-xs text-gray-600">Ebat</label>
+                    <input value={editRow.ebat||""} onChange={e=>setEditRow(r=>({...r,ebat:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">Araç KM</label>
+                    <input value={editRow.arac_km||""} onChange={e=>setEditRow(r=>({...r,arac_km:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">Firma</label>
+                    <input value={editRow.firma||""} onChange={e=>setEditRow(r=>({...r,firma:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">Tür</label>
+                    <select value={editRow.tur||"YAZ"} onChange={e=>setEditRow(r=>({...r,tur:e.target.value}))} className="border rounded-lg px-2 py-1">
+                      <option>YAZ</option><option>KIŞ</option>
+                    </select></div>
+                  <div><label className="block text-xs text-gray-600">İsim Soyisim</label>
+                    <input value={editRow.ad_soyad||""} onChange={e=>setEditRow(r=>({...r,ad_soyad:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">İl</label>
+                    <input value={editRow.il||""} onChange={e=>setEditRow(r=>({...r,il:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">İlçe</label>
+                    <input value={editRow.ilce||""} onChange={e=>setEditRow(r=>({...r,ilce:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">İrtibat</label>
+                    <input value={editRow.irtibat_no||""} onChange={e=>setEditRow(r=>({...r,irtibat_no:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div className="md:col-span-2"><label className="block text-xs text-gray-600">E-posta</label>
+                    <input value={editRow.email||""} onChange={e=>setEditRow(r=>({...r,email:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button onClick={closeEdit} className="px-3 py-1.5 rounded-lg border">Vazgeç</button>
+                  <button onClick={saveEdit} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white">Kaydet</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -769,9 +901,19 @@
     }catch(e){ console.warn(e); }
   }
 
+  // ✅ Güncelleme
+  async function updateOrderById(id, patch){
+    try{
+      const safe = Object.assign({}, patch);
+      if (safe.email && window.emailNormalize) safe.email = window.emailNormalize(safe.email);
+      await ORD.doc(id).set( { ...safe, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge:true } );
+    }catch(e){ console.warn(e); throw e; }
+  }
+
   // Global export (App çağıracak)
   window.pushOrder = pushOrder;
   window.deleteOrderById = deleteOrderById;
+  window.updateOrderById = updateOrderById;
   window.signOut = () => auth.signOut().catch(()=>{});
 
   // Auth state
