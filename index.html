@@ -18,8 +18,8 @@
         return k + Math.floor(((base - tmin + 1) * delta) / (delta + 38));
       }
       var n=128,i=0,bias=initial_bias; var dash=label.lastIndexOf('-'); var output=[]; var idx=4;
-      if (dash>4){ for(var j=4;j<dash;j++) output.push(label.charCodeAt(j)); idx=dash+1; }
-      while(idx<label.length){
+      if (dash>4){ for (var j=4;j<dash;j++) output.push(label.charCodeAt(j)); idx=dash+1; }
+      while (idx<label.length){
         var oldi=i,w=1,k=base;
         while(true){
           if(idx>=label.length) return label;
@@ -60,7 +60,6 @@
 </head>
 <body class="bg-gray-50 text-gray-900">
   <div id="root"></div>
-
   <script type="text/babel">
     const { useEffect, useMemo, useRef, useState } = React;
     const XLSX = window.XLSX;
@@ -616,7 +615,11 @@
                   <div><label className="block text-xs text-gray-500">Plaka</label><input value={sfPlaka} onChange={e=>setSfPlaka(e.target.value)} placeholder="34ABC123" className="border rounded-xl px-3 py-1.5 uppercase"/></div>
                   <div><label className="block text-xs text-gray-500">Lastik Firması</label><input value={sfFirma} onChange={e=>setSfFirma(e.target.value)} placeholder="Firma ara…" className="border rounded-xl px-3 py-1.5"/></div>
                   <div><label className="block text-xs text-gray-500">Tür</label><select value={sfTur} onChange={e=>setSfTur(e.target.value)} className="border rounded-xl px-3 py-1.5"><option value="">Hepsi</option><option value="Yaz">Yaz</option><option value="Kış">Kış</option></select></div>
-                  <div><label className="block text-xs text-gray-500">Ebat</label><input value={sfEbat} onChange={e=>setSfEbat(e.target.value)} placeholder="205/55 R16" className="border rounded-xl px-3 py-1.5"/></div>
+                  <div>
+                    <label className="block text-xs text-gray-500">Ebat</label>
+                    {/* Otomatik e-posta doldurmasını engellemek için autocomplete kapalı */}
+                    <input value={sfEbat} onChange={e=>setSfEbat(e.target.value)} placeholder="205/55 R16" autoComplete="off" name="sfEbat" className="border rounded-xl px-3 py-1.5"/>
+                  </div>
                   <button onClick={()=>{setSfBas("");setSfBit("");setSfPlaka("");setSfFirma("");setSfTur("");setSfEbat("");}} className="px-3 py-1.5 rounded-xl border shadow-sm">Filtreyi Temizle</button>
                   <button onClick={()=>{
                     const rows = pageRows.map(s=>({Tarih:s.tarih,Plaka:s.plaka,Ebat:s.ebat,"Araç KM":Number.parseInt(s.arac_km||0)||0,Firma:(s.firma||""),Tür:s.tur,"İsim Soyisim":(s.ad_soyad||""),"İl":(s.il||""),"İlçe":(s.ilce||""),"İrtibat":(s.irtibat_no||""),"E-posta":window.emailNormalize(s.email||"")}));
@@ -730,11 +733,19 @@
             <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
               <div><div className="text-gray-500">Başlangıç</div><div className="font-medium">{temp.kira_baslangic}</div></div>
               <div><div className="text-gray-500">Bitiş</div><div className="font-medium">{temp.kira_bitis}</div></div>
-              <div><div className="text-gray-500">Ebat</div><div className="font-medium">{temp.arac_ebat||"—"}</div></div>
+
+              {/* İSTEK: Ebat satırında Tahmini Dönem KM gösteriliyor */}
+              <div><div className="text-gray-500">Ebat</div><div className="font-medium">{Number(temp.tahmini_km||0).toLocaleString("tr-TR")}</div></div>
+
               <div><div className="text-gray-500">Yıllık KM</div><div className="font-medium">{temp.yillik_km==null?"Sınırsız":Number(temp.yillik_km).toLocaleString("tr-TR")}</div></div>
-              <div><div className="text-gray-500">Tahmini Dönem KM</div><div className="font-medium">{Number(temp.tahmini_km||0).toLocaleString("tr-TR")}</div></div>
-              <div><div className="text-gray-500">Kış Lastiği Hakkı</div><div className="font-medium">{valid?temp.kis_hakki:0}</div></div>
+
+              {/* İSTEK: Tahmini Dönem KM satırında Yaz Lastiği Hakkı gösteriliyor */}
               <div><div className="text-gray-500">Yaz Lastiği Hakkı</div><div className="font-medium">{valid?temp.yaz_hakki:0}</div></div>
+
+              <div><div className="text-gray-500">Kış Lastiği Hakkı</div><div className="font-medium">{valid?temp.kis_hakki:0}</div></div>
+
+              {/* İSTEK: Yaz Lastiği Hakkı satırında Ebat (arac_ebat) gösteriliyor */}
+              <div><div className="text-gray-500">Tahmini Dönem KM</div><div className="font-medium">{temp.arac_ebat||"—"}</div></div>
             </div>
           </div>
           <div className="self-center">
@@ -750,7 +761,6 @@
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
-
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
