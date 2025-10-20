@@ -917,5 +917,95 @@
     })();
   </script>
 
+
+<!-- manual-ebat: DOM-only enhancer -->
+<script>
+(function(){
+  function normEbat(s){
+    s = String(s||'').trim().toUpperCase().replace(/\s+/g,' ');
+    var m = s.match(/^(\d{3})\/(\d{2})\s*R(\d{2})$/i);
+    if(!m) return null;
+    return m[1] + '/' + m[2] + ' R' + m[3];
+  }
+  function getExtra(){
+    try{ var v = localStorage.getItem('lf_extra_ebatlar'); var a = JSON.parse(v||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; }
+  }
+  function saveExtra(a){
+    try{ localStorage.setItem('lf_extra_ebatlar', JSON.stringify(a)); }catch(e){}
+  }
+  function ensureOption(sel, value){
+    if(!sel) return;
+    for(var i=0;i<sel.options.length;i++){
+      if(String(sel.options[i].text||'').trim().toUpperCase()===value.toUpperCase()) return;
+    }
+    var o = document.createElement('option'); o.text = value; o.value = value; sel.appendChild(o);
+  }
+  function findSiparisEbatSelect(){
+    // Heuristic: the select with many tire-size-looking options near the "Sipariş Ekle" button
+    var btns = Array.from(document.querySelectorAll('button')).filter(b=>/sipari[sş]\s*ekle/i.test(b.textContent||''));
+    if(btns.length){
+      var root = btns[0].closest('form,div,section,main,article') || document.body;
+      var sels = root.querySelectorAll('select');
+      var reSize = /^\s*\d{3}\/\d{2}\s*R\d{2}\s*$/i;
+      for(var i=0;i<sels.length;i++){
+        var sel = sels[i], hits=0;
+        for(var j=0;j<sel.options.length;j++){
+          if(reSize.test(sel.options[j].text)) { hits++; if(hits>5) return sel; }
+        }
+      }
+    }
+    // Fallback: pick select with > 20 options matching pattern anywhere
+    var all = document.querySelectorAll('select'), reSize = /^\s*\d{3}\/\d{2}\s*R\d{2}\s*$/i;
+    for(var i=0;i<all.length;i++){
+      var sel = all[i], hits=0;
+      for(var j=0;j<sel.options.length;j++){
+        if(reSize.test(all[i].options[j].text)) { hits++; if(hits>20) return sel; }
+      }
+    }
+    return null;
+  }
+  function mountUI(){
+    var sel = findSiparisEbatSelect();
+    if(!sel){ setTimeout(mountUI, 300); return; }
+
+    // hydrate extra sizes (+ ensure 235/50 R19 exists)
+    var extras = getExtra();
+    if(extras.indexOf('235/50 R19')===-1) extras.push('235/50 R19');
+    extras.forEach(function(v){ ensureOption(sel, v); });
+
+    // create UI once
+    if(sel.__manualEbatMounted) return;
+    sel.__manualEbatMounted = true;
+
+    var wrap = document.createElement('div');
+    wrap.style.display = 'flex'; wrap.style.alignItems='center'; wrap.style.gap='8px'; wrap.style.marginTop='8px';
+
+    var inp = document.createElement('input');
+    inp.placeholder = 'örn. 235/50 R19';
+    inp.style.border='1px solid #d1d5db'; inp.style.borderRadius='6px'; inp.style.padding='6px 8px'; inp.style.fontSize='14px';
+
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = 'Ebat Ekle';
+    btn.style.background='#059669'; btn.style.color='#fff'; btn.style.border='none'; btn.style.borderRadius='8px';
+    btn.style.padding='6px 10px'; btn.style.cursor='pointer';
+
+    btn.addEventListener('click', function(){
+      var v = normEbat(inp.value);
+      if(!v){ alert('Geçersiz ebat. Örn: 235/50 R19'); return; }
+      ensureOption(sel, v);
+      sel.value = v;
+      var ex = getExtra(); if(ex.indexOf(v)===-1){ ex.push(v); saveExtra(ex); }
+      inp.value='';
+    });
+
+    wrap.appendChild(inp); wrap.appendChild(btn);
+    sel.parentNode.insertBefore(wrap, sel.nextSibling);
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', mountUI);
+  else mountUI();
+})();
+</script>
+
 </body>
 </html>
