@@ -80,16 +80,46 @@
     }
     const daysInc=(a,b)=>Math.floor((b-a)/86400000)+1;
     const prorata=(yk,s,e)=>{ const ds=toDate(s), de=toDate(e); if(!ds||!de||de<ds) return 0; return yk*(daysInc(ds,de)/365); };
-    function normExcelDate(v){
-      if(v==null) return "";
-      if(typeof v==="number" && XLSX.SSF && XLSX.SSF.parse_date_code){
-        const o=XLSX.SSF.parse_date_code(v); if(o && o.y && o.m && o.d) return fmt(new Date(o.y,o.m-1,o.d));
-      }
-      const s=String(v).trim(); if(FMT.test(s)) return s;
-      const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-      if(m){ const d=new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`); if(!isNaN(d)) return fmt(d); }
-      const d=toDate(s); return d?fmt(d):s;
+    
+function normExcelDate(v){
+  try{
+    if(v==null || v==="") return "";
+    if(typeof v==="number" && XLSX && XLSX.SSF && XLSX.SSF.parse_date_code){
+      const o = XLSX.SSF.parse_date_code(v);
+      if(o && o.y && o.m && o.d) return fmt(new Date(o.y, o.m-1, o.d));
     }
+    const raw = String(v).trim();
+    if(!raw) return "";
+    if(FMT.test(raw)) return raw; // already gg.aa.yy
+
+    // normalize separators to '/'
+    let s = raw.replace(/\s*[/\-.]\s*/g,'/');
+
+    // dd/mm/yy or dd/mm/yyyy
+    let m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(s);
+    if(m){
+      let d = parseInt(m[1],10), mo = parseInt(m[2],10), y = parseInt(m[3],10);
+      if(y < 100) y = 2000 + y;
+      const dt = new Date(y, mo-1, d);
+      if(!isNaN(dt)) return fmt(dt);
+    }
+
+    // ISO yyyy-mm-dd
+    m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    if(m){
+      const dt = new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+      if(!isNaN(dt)) return fmt(dt);
+    }
+
+    // Native parse last
+    const dt = new Date(raw);
+    if(!isNaN(dt)) return fmt(dt);
+    return raw;
+  }catch(e){
+    return String(v);
+  }
+}
+
     function download(name, text){
       const a=document.createElement("a");
       a.href=URL.createObjectURL(new Blob([text],{type:"text/plain;charset=utf-8"}));
@@ -99,6 +129,25 @@
     function normalizeTR(s){ try{ return String(s||'').toLowerCase().normalize('NFC').replace(/ş/g,'s').replace(/ı/g,'i').trim(); }catch{ return String(s||'').toLowerCase().trim(); } }
 
     function AracPanel({ araclar, onClose, onImportXLSX, onSil, onKaydet }){
+      function onExportExcel(){
+        try{
+          const rows = (araclar||[]).map(a=>({
+            Plaka: a.plaka || "",
+            Firma: (a.firma ?? a.firma_id ?? ""),
+            "Kira Başlangıç": a.kira_baslangic || "",
+            "Kira Bitiş": a.kira_bitis || "",
+            "Yıllık KM Hakkı": (a.yillik_km_hakki==null ? "" : a.yillik_km_hakki),
+            Ebat: a.arac_ebat || "",
+            Notlar: a.notlar || ""
+          }));
+          if(rows.length===0){ alert("Dışa aktarılacak araç bulunamadı."); return; }
+          const ws = XLSX.utils.json_to_sheet(rows);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Araclar");
+          XLSX.writeFile(wb, "arac_bilgisi.xlsx");
+        }catch(e){ alert("Excel dışa aktarma başarısız: " + (e.message||e)); }
+      }
+    
       const pageSize = 50;
       const [q, setQ]     = useState("");
       const [page, setPage]= useState(1);
@@ -109,7 +158,7 @@
         if(!s) return araclar;
         return araclar.filter(a =>
           String(a.plaka||"").toUpperCase().includes(s) ||
-          String(a.firma_id||"").toUpperCase().includes(s) ||
+          String(a.firma||"").toUpperCase().includes(s) ||
           String(a.arac_ebat||"").toUpperCase().includes(s) ||
           String(a.notlar||"").toUpperCase().includes(s)
         );
@@ -144,8 +193,13 @@
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xl font-semibold">Araç Bilgisi</h2>
               <div className="flex gap-2">
-                <input ref={fileRef} type="file" className="hidden" accept=".xlsx,.xls" onChange={(e)=>onImportXLSX(e)} />
+                
+                <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={onImportXLSX} className="hidden"/>
                 <button onClick={()=>fileRef.current?.click()} className="px-3 py-1.5 rounded-lg border">Excel İçe Al</button>
+                <button onClick={onExportExcel} className="px-3 py-1.5 rounded-lg border">Excel'e Aktar</button>
+                
+                <button onClick={()=>{setEditRow({originalPlaka:"",plaka:"",firma:"",kira_baslangic:"",kira_bitis:"",yillik_km_hakki:"",arac_ebat:"",notlar:""});setEditOpen(true);}} className="px-3 py-1.5 rounded-lg border">Manuel Araç Ekle</button>
+                <a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,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" download className="px-3 py-1.5 rounded-lg border inline-flex items-center">Örnek Excel İndir</a>
                 <button onClick={onClose} className="px-3 py-1.5 rounded-lg border">Kapat</button>
               </div>
             </div>
@@ -153,7 +207,7 @@
             <div className="flex items-end gap-2 mb-3">
               <div className="grow">
                 <label className="block text-xs text-gray-500">Ara</label>
-                <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Plaka, firma_id, ebat veya not…" className="w-full border rounded-xl px-3 py-1.5"/>
+                <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Plaka, firma, ebat veya not…" className="w-full border rounded-xl px-3 py-1.5"/>
               </div>
               <div className="text-sm text-gray-600">
                 Toplam <span className="font-semibold">{filtered.length.toLocaleString("tr-TR")}</span> araç •
@@ -172,7 +226,7 @@
                 <thead>
                   <tr className="text-left border-b bg-gray-50">
                     <th className="py-2 px-3">Plaka</th>
-                    <th className="py-2 px-3">Firma ID</th>
+                    <th className="py-2 px-3">Firma</th>
                     <th className="py-2 px-3">Kira Başlangıç</th>
                     <th className="py-2 px-3">Kira Bitiş</th>
                     <th className="py-2 px-3">Yıllık KM Hakkı</th>
@@ -187,7 +241,7 @@
                   ) : pageRows.map(a=>(
                     <tr key={a.plaka} className="border-b last:border-0">
                       <td className="py-2 px-3 whitespace-nowrap">{a.plaka}</td>
-                      <td className="py-2 px-3 whitespace-nowrap">{a.firma_id}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">{a.firma}</td>
                       <td className="py-2 px-3 whitespace-nowrap">{a.kira_baslangic}</td>
                       <td className="py-2 px-3 whitespace-nowrap">{a.kira_bitis}</td>
                       <td className="py-2 px-3 whitespace-nowrap">{a.yillik_km_hakki==null ? "Sınırsız" : Number(a.yillik_km_hakki).toLocaleString("tr-TR")}</td>
@@ -218,8 +272,8 @@
                       <input value={editRow.plaka||""} onChange={e=>setEditRow(r=>({...r,plaka:e.target.value.toUpperCase()}))} className="border rounded-lg px-2 py-1 uppercase"/>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600">Firma ID</label>
-                      <input value={editRow.firma_id||""} onChange={e=>setEditRow(r=>({...r,firma_id:e.target.value}))} className="border rounded-lg px-2 py-1"/>
+                      <label className="block text-xs text-gray-600">Firma</label>
+                      <input value={editRow.firma||""} onChange={e=>setEditRow(r=>({...r,firma:e.target.value,firma_id:e.target.value}))} className="border rounded-lg px-2 py-1"/>
                     </div>
                     <div>
                       <label className="block text-xs text-gray-600">Kira Başlangıç</label>
@@ -358,10 +412,10 @@
       function siparisSil(id){ if(!confirm("Silinsin mi?")) return; setSiparisler(prev=>prev.filter(s=>s.id!==id)); try{ window.deleteOrderById && window.deleteOrderById(id); }catch{} }
 
       function exportCSV(){
-        const hdr=["plaka","firma_id","kira_baslangic","kira_bitis","yillik_km_hakki","arac_ebat","notlar"];
+        const hdr=["plaka","firma","kira_baslangic","kira_bitis","yillik_km_hakki","arac_ebat","notlar"];
         const rows=[hdr.join(",")];
         for(const a of araclar){
-          rows.push([csvSafe(a.plaka),csvSafe(a.firma_id),csvSafe(a.kira_baslangic),csvSafe(a.kira_bitis),csvSafe(a.yillik_km_hakki==null?"":a.yillik_km_hakki),csvSafe(a.arac_ebat||""),csvSafe((a.notlar||"").replaceAll(",",";"))].join(","));
+          rows.push([csvSafe(a.plaka),csvSafe(a.firma),csvSafe(a.kira_baslangic),csvSafe(a.kira_bitis),csvSafe(a.yillik_km_hakki==null?"":a.yillik_km_hakki),csvSafe(a.arac_ebat||""),csvSafe((a.notlar||"").replaceAll(",",";"))].join(","));
         }
         download("araclar.csv",rows.join("\n"));
       }
@@ -376,31 +430,30 @@
         }catch(e){ alert("JSON okunamadı: "+e.message) } finally{ ev.target.value=""; } }; fr.readAsText(f,"utf-8");
       }
       function importXLSX(ev){
-        const f=ev.target.files?.[0]; if(!f) return;
-        const fr=new FileReader(); fr.onload=()=>{ try{
-          const wb=XLSX.read(new Uint8Array(fr.result),{type:"array"});
-          const wsF=wb.Sheets["Firmalar"]||wb.Sheets["firmalar"]; let yeniF=[];
-          if(wsF){ yeniF=XLSX.utils.sheet_to_json(wsF,{defval:""}).map(r=>({id:String(r.id||"").trim(), ad:String(r.ad||"").trim()})).filter(x=>x.id&&x.ad); }
-          const wsA=wb.Sheets["Araclar"]||wb.Sheets["araclar"]; let yeniA=[];
-          if(wsA){
-            yeniA=XLSX.utils.sheet_to_json(wsA,{defval:""}).map(r=>{
-              const yk=String(r.yillik_km_hakki??"").trim();
-              const ykVal = yk==="" ? null : (Number.isFinite(Number(yk))?Math.floor(Number(yk)):null);
-              return {plaka:String(r.plaka||"").trim().toUpperCase(),
-                      firma_id:String(r.firma_id||"").trim(),
-                      kira_baslangic:normExcelDate(r.kira_baslangic),
-                      kira_bitis:normExcelDate(r.kira_bitis),
-                      yillik_km_hakki: ykVal,
-                      arac_ebat:String(r.arac_ebat||r.ebat||"").trim(),
-                      notlar:String(r.notlar||"").trim()};
-            }).filter(a=>a.plaka&&a.firma_id&&a.kira_baslangic&&a.kira_bitis);
-          }
-          if(yeniF.length){ const m=new Map(firmalar.map(f=>[f.id,f])); yeniF.forEach(f=>m.set(f.id,f)); setFirmalar([...m.values()].sort((a,b)=>a.id.localeCompare(b.id))); }
-          if(yeniA.length){ const m=new Map(araclar.map(a=>[a.plaka,a])); yeniA.forEach(a=>m.set(a.plaka,a)); setAraclar([...m.values()].sort((a,b)=>a.plaka.localeCompare(b.plaka))); }
-          if(!yeniF.length && !yeniA.length) alert("Excel'de 'Firmalar' ve/veya 'Araclar' sayfaları yok.");
-        }catch(e){ alert("Excel okunamadı: "+e.message) } finally{ ev.target.value=""; } }; fr.readAsArrayBuffer(f);
-      }
-      function importSiparisXLSX(ev){
+  const f=ev.target.files?.[0]; if(!f) return;
+  const fr=new FileReader(); fr.onload=()=>{ try{
+    const wb=XLSX.read(new Uint8Array(fr.result),{type:"array"});
+    const wsA=wb.Sheets["Araclar"]||wb.Sheets["araclar"]; let yeniA=[];
+    if(wsA){
+      yeniA=XLSX.utils.sheet_to_json(wsA,{defval:""}).map(r=>{
+        const yk=String(r.yillik_km_hakki??"").trim();
+        const ykVal = yk==="" ? null : (Number.isFinite(Number(yk))?Math.floor(Number(yk)):null);
+        return {
+          plaka:String(r.plaka||"").trim().toUpperCase(),
+          firma:String(r.ad||r.firma||"").trim(),
+          kira_baslangic:normExcelDate(r.kira_baslangic),
+          kira_bitis:normExcelDate(r.kira_bitis),
+          yillik_km_hakki: ykVal,
+          arac_ebat:String(r.arac_ebat||r.ebat||"").trim(),
+          notlar:String(r.notlar||"").trim()
+        };
+      }).filter(a=>a.plaka&&a.firma&&a.kira_baslangic&&a.kira_bitis);
+    }
+    if(yeniA.length){ const m=new Map(araclar.map(a=>[a.plaka,a])); yeniA.forEach(a=>m.set(a.plaka,a)); setAraclar([...m.values()].sort((a,b)=>a.plaka.localeCompare(b.plaka))); }
+    if(!yeniA.length) alert("Excel'de 'Araclar' sayfası bulunamadı veya kolonlar boş.");
+  }catch(e){ alert("Excel okunamadı: "+e.message) } finally{ ev.target.value=""; } }; fr.readAsArrayBuffer(f);
+}
+function importSiparisXLSX(ev){
         const f=ev.target.files?.[0]; if(!f) return;
         const fr=new FileReader(); fr.onload=()=>{ try{
           const wb=XLSX.read(new Uint8Array(fr.result),{type:"array"});
@@ -474,20 +527,30 @@
 
       const [showAracPanel, setShowAracPanel] = useState(false);
       function aracSil(plaka){ if(!confirm("Bu aracı silmek istiyor musunuz?")) return; setAraclar(prev => prev.filter(a => a.plaka !== plaka)); }
-      function aracKaydet(originalPlaka, data){
-        const yeni = {
-          plaka: String(data.plaka||"").trim().toUpperCase(),
-          firma_id: String(data.firma_id||"").trim(),
-          kira_baslangic: String(data.kira_baslangic||"").trim(),
-          kira_bitis: String(data.kira_bitis||"").trim(),
-          yillik_km_hakki: data.yillik_km_hakki==='' ? null : (Number.isFinite(Number(data.yillik_km_hakki)) ? Math.floor(Number(data.yillik_km_hakki)) : null),
-          arac_ebat: String(data.arac_ebat||"").trim(),
-          notlar: String(data.notlar||"").trim()
-        };
-        if(!yeni.plaka || !yeni.firma_id || !yeni.kira_baslangic || !yeni.kira_bitis){ alert("Plaka, firma_id, kira başlangıç ve kira bitiş zorunludur."); return false; }
-        setAraclar(prev=>{ const m = new Map(prev.map(a=>[a.plaka,a])); if(originalPlaka && originalPlaka!==yeni.plaka) m.delete(originalPlaka); m.set(yeni.plaka, yeni); return [...m.values()].sort((a,b)=>a.plaka.localeCompare(b.plaka)); });
-        return true;
-      }
+      
+function aracKaydet(originalPlaka, data){
+  const yeni = {
+    plaka: String(data.plaka||"").trim().toUpperCase(),
+    firma: String(data.firma || data.firma_id || "").trim(),
+    kira_baslangic: normExcelDate(data.kira_baslangic),
+    kira_bitis: normExcelDate(data.kira_bitis),
+    yillik_km_hakki: data.yillik_km_hakki==='' ? null : (Number.isFinite(Number(data.yillik_km_hakki)) ? Math.floor(Number(data.yillik_km_hakki)) : null),
+    arac_ebat: String(data.arac_ebat||"").trim(),
+    notlar: String(data.notlar||"").trim()
+  };
+  if(!yeni.plaka || !yeni.firma || !yeni.kira_baslangic || !yeni.kira_bitis){
+    alert("Plaka, firma, kira başlangıç ve kira bitiş zorunludur."); 
+    return false;
+  }
+  setAraclar(prev=>{ 
+    const m = new Map(prev.map(a=>[a.plaka,a])); 
+    if(originalPlaka && originalPlaka!==yeni.plaka) m.delete(originalPlaka); 
+    m.set(yeni.plaka, yeni); 
+    return [...m.values()].sort((a,b)=>a.plaka.localeCompare(b.plaka)); 
+  });
+  return true;
+}
+
 
       return (
         <div className="min-h-screen">
@@ -497,13 +560,13 @@
               <div className="flex items-center gap-3">
                 {userInfo.email && (<div className="text-xs bg-white/15 px-3 py-1.5 rounded-xl">{userInfo.name||userInfo.email}</div>)}
                 <div className="flex gap-2">
-                  <button onClick={exportCSV} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">CSV</button>
-                  <button onClick={exportJSON} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">JSON</button>
-                  <input ref={fileRef} type="file" accept="application/json" onChange={importJSON} className="hidden"/>
-                  <button onClick={()=>fileRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">JSON İçe Al</button>
+                  
+                  
+                  
                   <input ref={xlsxRef} type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden"/>
                   <button onClick={()=>xlsxRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Excel İçe Al</button>
-                  <input ref={siparisXlsxRef} type="file" accept=".xlsx,.xls" onChange={importSiparisXLSX} className="hidden"/>
+                  <a href="./arac_import_ornek.xlsx" download className="px-3 py-1.5 rounded-lg border inline-flex items-center">Örnek Excel İndir</a>
+                <input ref={siparisXlsxRef} type="file" accept=".xlsx,.xls" onChange={importSiparisXLSX} className="hidden"/>
                   <button onClick={()=>siparisXlsxRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Excel’den Sipariş Yükle</button>
                   <button onClick={()=>setShowAracPanel(true)} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Araç Bilgisi</button>
                   <button onClick={()=>window.signOut && window.signOut()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Çıkış</button>
@@ -581,10 +644,7 @@
                 <PreviewCard
                   temp={{
                     plaka:(sorguPlaka||"").toUpperCase(),
-                    firma_ad: (()=>{
-                      if(seciliArac) return (firmaMap.get(seciliArac.firma_id)||seciliArac.firma_id);
-                      return (firmaMap.get(firmaId)||firmaId||"—");
-                    })(),
+                    firma_ad: (seciliArac ? (seciliArac.firma||"—") : (sFirma||"—")),
                     kira_baslangic: seciliArac ? seciliArac.kira_baslangic : (baslangic || "—"),
                     kira_bitis: seciliArac ? seciliArac.kira_bitis : (bitis || "—"),
                     arac_ebat: (seciliArac && seciliArac.arac_ebat) ? seciliArac.arac_ebat : (sEbat || "—"),
@@ -618,7 +678,7 @@
                   <div>
                     <label className="block text-xs text-gray-500">Ebat</label>
                     {/* Otomatik e-posta doldurmasını engellemek için autocomplete kapalı */}
-                    <input value={sfEbat} onChange={(e)=>setSfEbat(((e.target.value||"")+"").includes("@")?"":e.target.value)} placeholder="205/55 R16" autoComplete="off" name="sfEbat" className="border rounded-xl px-3 py-1.5"/>
+                    <input value={sfEbat} onChange={e=>setSfEbat(e.target.value)} placeholder="205/55 R16" autoComplete="off" name="sfEbat" className="border rounded-xl px-3 py-1.5"/>
                   </div>
                   <button onClick={()=>{setSfBas("");setSfBit("");setSfPlaka("");setSfFirma("");setSfTur("");setSfEbat("");}} className="px-3 py-1.5 rounded-xl border shadow-sm">Filtreyi Temizle</button>
                   <button onClick={()=>{
@@ -918,6 +978,49 @@
   </script>
 
 
+<!-- örnek excel indir butonu -->
+<script>
+(function(){
+  function ensureButton(){
+    try{
+      var btns = Array.from(document.querySelectorAll('button'));
+      var excelBtn = btns.find(b => /excel\s*iç.?e\s*al/i.test(b.textContent||''));
+      if(!excelBtn) { setTimeout(ensureButton, 400); return; }
+
+      // Eğer daha önce eklenmişse tekrar ekleme
+      if (excelBtn.__sampleAdded) return;
+      excelBtn.__sampleAdded = true;
+
+      // Yeni buton
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Örnek Excel İndir';
+      btn.style.marginLeft = '8px';
+      btn.className = excelBtn.className || 'border rounded px-3 py-1.5';
+      btn.addEventListener('click', downloadSample);
+
+      excelBtn.parentNode.insertBefore(btn, excelBtn.nextSibling);
+    }catch(e){}
+  }
+  function downloadSample(){
+    // SheetJS (XLSX) kütüphanesi sayfada zaten var (export için kullanılıyor)
+    if (typeof XLSX === 'undefined'){ alert('XLSX kitaplığı yüklenemedi.'); return; }
+    var rows = [
+      { "Plaka":"34ABC123", "Firma":"TUB", "Kira Başlangıç":"12.09.25", "Kira Bitiş":"12.09.27", "Yıllık KM Hakkı":30000, "Ebat":"205/55 R16", "Notlar":"" },
+      { "Plaka":"06XYZ789", "Firma":"MOK", "Kira Başlangıç":"15.10.25", "Kira Bitiş":"15.10.27", "Yıllık KM Hakkı":30000, "Ebat":"195/65 R15", "Notlar":"Hatchback" },
+      { "Plaka":"35HNR404", "Firma":"EMS", "Kira Başlangıç":"01.11.25", "Kira Bitiş":"01.11.27", "Yıllık KM Hakkı":40000, "Ebat":"235/50 R19", "Notlar":"SUV" }
+    ];
+    var ws = XLSX.utils.json_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Araç Bilgisi");
+    XLSX.writeFile(wb, "ornek_arac_bilgisi.xlsx");
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureButton);
+  else ensureButton();
+})();
+</script>
+
+
 <!-- manual-ebat: DOM-only enhancer -->
 <script>
 (function(){
@@ -941,7 +1044,6 @@
     var o = document.createElement('option'); o.text = value; o.value = value; sel.appendChild(o);
   }
   function findSiparisEbatSelect(){
-    // Heuristic: the select with many tire-size-looking options near the "Sipariş Ekle" button
     var btns = Array.from(document.querySelectorAll('button')).filter(b=>/sipari[sş]\s*ekle/i.test(b.textContent||''));
     if(btns.length){
       var root = btns[0].closest('form,div,section,main,article') || document.body;
@@ -954,7 +1056,6 @@
         }
       }
     }
-    // Fallback: pick select with > 20 options matching pattern anywhere
     var all = document.querySelectorAll('select'), reSize = /^\s*\d{3}\/\d{2}\s*R\d{2}\s*$/i;
     for(var i=0;i<all.length;i++){
       var sel = all[i], hits=0;
@@ -968,12 +1069,10 @@
     var sel = findSiparisEbatSelect();
     if(!sel){ setTimeout(mountUI, 300); return; }
 
-    // hydrate extra sizes (+ ensure 235/50 R19 exists)
     var extras = getExtra();
     if(extras.indexOf('235/50 R19')===-1) extras.push('235/50 R19');
     extras.forEach(function(v){ ensureOption(sel, v); });
 
-    // create UI once
     if(sel.__manualEbatMounted) return;
     sel.__manualEbatMounted = true;
 
@@ -983,11 +1082,12 @@
     var inp = document.createElement('input');
     inp.placeholder = 'örn. 235/50 R19';
     inp.style.border='1px solid #d1d5db'; inp.style.borderRadius='6px'; inp.style.padding='6px 8px'; inp.style.fontSize='14px';
+    inp.style.width='200px';
 
     var btn = document.createElement('button');
     btn.type = 'button'; btn.textContent = 'Ebat Ekle';
     btn.style.background='#059669'; btn.style.color='#fff'; btn.style.border='none'; btn.style.borderRadius='8px';
-    btn.style.padding='6px 10px'; btn.style.cursor='pointer';
+    btn.style.padding='8px 12px'; btn.style.cursor='pointer';
 
     btn.addEventListener('click', function(){
       var v = normEbat(inp.value);
@@ -1004,33 +1104,6 @@
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', mountUI);
   else mountUI();
-})();
-</script>
-
-
-<script>
-// runtime guard: prevent emails in Ebat filter
-(function(){
-  try{
-    document.addEventListener('input', function(ev){
-      var el = ev.target;
-      if(!el || el.tagName!=='INPUT') return;
-      var lbl = (el.closest('[class*="flex"]')||el.parentElement);
-      var labelText = "";
-      if(lbl){
-        var ps = lbl.querySelectorAll('label,div,span');
-        for(var i=0;i<ps.length;i++){
-          var t=(ps[i].textContent||"").trim().toLowerCase();
-          if(t.length<20) labelText += " " + t;
-        }
-      }
-      var isEbatCandidate = labelText.includes('ebat') || (el.placeholder||'').toLowerCase().includes('r16') || (el.placeholder||'').toLowerCase().includes('ebat');
-      if(isEbatCandidate){
-        var v = el.value||'';
-        if(v.indexOf('@')!==-1){ el.value=''; }
-      }
-    }, true);
-  }catch(e){}
 })();
 </script>
 
