@@ -618,7 +618,7 @@
                   <div>
                     <label className="block text-xs text-gray-500">Ebat</label>
                     {/* Otomatik e-posta doldurmasını engellemek için autocomplete kapalı */}
-                    <input value={sfEbat} onChange={e=>setSfEbat(e.target.value)} placeholder="205/55 R16" autoComplete="off" name="sfEbat" className="border rounded-xl px-3 py-1.5"/>
+                    <input value={sfEbat} onChange={(e)=>setSfEbat(((e.target.value||"")+"").includes("@")?"":e.target.value)} placeholder="205/55 R16" autoComplete="off" name="sfEbat" className="border rounded-xl px-3 py-1.5"/>
                   </div>
                   <button onClick={()=>{setSfBas("");setSfBit("");setSfPlaka("");setSfFirma("");setSfTur("");setSfEbat("");}} className="px-3 py-1.5 rounded-xl border shadow-sm">Filtreyi Temizle</button>
                   <button onClick={()=>{
@@ -1004,6 +1004,33 @@
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', mountUI);
   else mountUI();
+})();
+</script>
+
+
+<script>
+// runtime guard: prevent emails in Ebat filter
+(function(){
+  try{
+    document.addEventListener('input', function(ev){
+      var el = ev.target;
+      if(!el || el.tagName!=='INPUT') return;
+      var lbl = (el.closest('[class*="flex"]')||el.parentElement);
+      var labelText = "";
+      if(lbl){
+        var ps = lbl.querySelectorAll('label,div,span');
+        for(var i=0;i<ps.length;i++){
+          var t=(ps[i].textContent||"").trim().toLowerCase();
+          if(t.length<20) labelText += " " + t;
+        }
+      }
+      var isEbatCandidate = labelText.includes('ebat') || (el.placeholder||'').toLowerCase().includes('r16') || (el.placeholder||'').toLowerCase().includes('ebat');
+      if(isEbatCandidate){
+        var v = el.value||'';
+        if(v.indexOf('@')!==-1){ el.value=''; }
+      }
+    }, true);
+  }catch(e){}
 })();
 </script>
 
