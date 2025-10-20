@@ -622,7 +622,8 @@
                   </div>
                   <button onClick={()=>{setSfBas("");setSfBit("");setSfPlaka("");setSfFirma("");setSfTur("");setSfEbat("");}} className="px-3 py-1.5 rounded-xl border shadow-sm">Filtreyi Temizle</button>
                   <button onClick={()=>{
-                    const rows = pageRows.map(s=>({Tarih:s.tarih,Plaka:s.plaka,Ebat:s.ebat,"Araç KM":Number.parseInt(s.arac_km||0)||0,Firma:(s.firma||""),Tür:s.tur,"İsim Soyisim":(s.ad_soyad||""),"İl":(s.il||""),"İlçe":(s.ilce||""),"İrtibat":(s.irtibat_no||""),"E-posta":window.emailNormalize(s.email||"")}));
+                    const src = (Array.isArray(filtered) && filtered.length ? filtered : pageRows);
+                    const rows = src.map(s=>({Tarih:s.tarih,Plaka:s.plaka,Ebat:s.ebat,"Araç KM":Number.parseInt(s.arac_km||0)||0,Firma:(s.firma||""),Tür:s.tur,"İsim Soyisim":(s.ad_soyad||""),"İl":(s.il||""),"İlçe":(s.ilce||""),"İrtibat":(s.irtibat_no||""),"E-posta":window.emailNormalize(s.email||"")}));
                     if(!rows.length) return alert("Filtreye uyan sipariş yok.");
                     const ws=XLSX.utils.json_to_sheet(rows), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Siparisler"); XLSX.writeFile(wb,"siparisler.xlsx");
                   }} className="px-3 py-1.5 rounded-xl border shadow-sm">Excel'e Aktar</button>
