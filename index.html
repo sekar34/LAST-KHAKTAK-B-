@@ -616,7 +616,7 @@
                   <div><label className="block text-xs text-gray-500">Lastik Firması</label><input value={sfFirma} onChange={e=>setSfFirma(e.target.value)} placeholder="Firma ara…" className="border rounded-xl px-3 py-1.5"/></div>
                   <div><label className="block text-xs text-gray-500">Tür</label><select value={sfTur} onChange={e=>setSfTur(e.target.value)} className="border rounded-xl px-3 py-1.5"><option value="">Hepsi</option><option value="Yaz">Yaz</option><option value="Kış">Kış</option></select></div>
                   <div>
-                    <label className="block text-xs text-gray-500">Yaz Lastiği Hakkı</label>
+                    <label className="block text-xs text-gray-500">Ebat</label>
                     {/* Otomatik e-posta doldurmasını engellemek için autocomplete kapalı */}
                     <input value={sfEbat} onChange={e=>setSfEbat(e.target.value)} placeholder="205/55 R16" autoComplete="off" name="sfEbat" className="border rounded-xl px-3 py-1.5"/>
                   </div>
@@ -647,7 +647,7 @@
                 <div className="overflow-auto">
                   <table className="min-w-full text-sm">
                     <thead><tr className="text-left border-b">
-                      <th className="py-2 pr-4">Tarih</th><th className="py-2 pr-4">Plaka</th><th className="py-2 pr-4">Yaz Lastiği Hakkı</th>
+                      <th className="py-2 pr-4">Tarih</th><th className="py-2 pr-4">Plaka</th><th className="py-2 pr-4">Ebat</th>
                       <th className="py-2 pr-4">Araç KM</th><th className="py-2 pr-4">Firma</th><th className="py-2 pr-4">Tür</th><th className="py-2 pr-4">İsim Soyisim</th><th className="py-2 pr-4">İl</th><th className="py-2 pr-4">İlçe</th><th className="py-2 pr-4">İrtibat</th><th className="py-2 pr-4">E-posta</th><th className="py-2 pr-4">İşlem</th>
                     </tr></thead>
                     <tbody>
@@ -698,7 +698,7 @@
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
                   <div><label className="block text-xs text-gray-600">Tarih</label><input value={editRow.tarih||""} onChange={e=>setEditRow(r=>({...r,tarih:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
                   <div><label className="block text-xs text-gray-600">Plaka</label><input value={editRow.plaka||""} onChange={e=>setEditRow(r=>({...r,plaka:e.target.value.toUpperCase()}))} className="border rounded-lg px-2 py-1 uppercase"/></div>
-                  <div><label className="block text-xs text-gray-600">Yaz Lastiği Hakkı</label><input value={editRow.ebat||""} onChange={e=>setEditRow(r=>({...r,ebat:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">Ebat</label><input value={editRow.ebat||""} onChange={e=>setEditRow(r=>({...r,ebat:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
                   <div><label className="block text-xs text-gray-600">Araç KM</label><input value={editRow.arac_km||""} onChange={e=>setEditRow(r=>({...r,arac_km:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
                   <div><label className="block text-xs text-gray-600">Firma</label><input value={editRow.firma||""} onChange={e=>setEditRow(r=>({...r,firma:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
                   <div><label className="block text-xs text-gray-600">Tür</label>
@@ -735,17 +735,30 @@
               <div><div className="text-gray-500">Bitiş</div><div className="font-medium">{temp.kira_bitis}</div></div>
 
               {/* İSTEK: Ebat satırında Tahmini Dönem KM gösteriliyor */}
-              <div><div className="text-gray-500">Tahmini Dönem KM</div><div className="font-medium">{Number(temp.tahmini_km||0).toLocaleString("tr-TR")}</div></div>
+              
 
               <div><div className="text-gray-500">Yıllık KM</div><div className="font-medium">{temp.yillik_km==null?"Sınırsız":Number(temp.yillik_km).toLocaleString("tr-TR")}</div></div>
+<div>
+  <div className="text-gray-500">Tahmini Dönem KM</div>
+  <div className="font-medium">{Number(temp.tahmini_km||0).toLocaleString("tr-TR")}</div>
+</div>
+<div>
+  <div className="text-gray-500">Yaz Lastiği Hakkı</div>
+  <div className="font-medium">{valid ? temp.yaz_hakki : 0}</div>
+</div>
+<div>
+  <div className="text-gray-500">Ebat</div>
+  <div className="font-medium">{temp.arac_ebat||"—"}</div>
+</div>
+
 
               {/* İSTEK: Tahmini Dönem KM satırında Yaz Lastiği Hakkı gösteriliyor */}
-              <div><div className="text-gray-500">Yaz Lastiği Hakkı</div><div className="font-medium">{valid?temp.yaz_hakki:0}</div></div>
+              
 
               <div><div className="text-gray-500">Kış Lastiği Hakkı</div><div className="font-medium">{valid?temp.kis_hakki:0}</div></div>
 
               {/* İSTEK: Yaz Lastiği Hakkı satırında Ebat (arac_ebat) gösteriliyor */}
-              <div><div className="text-gray-500">Ebat</div><div className="font-medium">{temp.arac_ebat||"—"}</div></div>
+              
             </div>
           </div>
           <div className="self-center">
@@ -885,5 +898,23 @@
     });
   })();
   </script>
+
+  <script>
+    (function(){
+      try{
+        document.addEventListener('input', function(ev){
+          var el = ev.target;
+          if(!(el && el.tagName==='INPUT')) return;
+          var ph = (el.getAttribute('placeholder')||'').toLowerCase();
+          var name = (el.getAttribute('name')||'').toLowerCase();
+          if (ph.includes('ebat') || name.includes('ebat') || ph.includes('yaz lastiği hakkı') || ph.includes('yaz lastigi hakki')) {
+            var v = el.value || '';
+            if (v.indexOf('@') !== -1) { el.value=''; }
+          }
+        }, true);
+      }catch(e){}
+    })();
+  </script>
+
 </body>
 </html>
