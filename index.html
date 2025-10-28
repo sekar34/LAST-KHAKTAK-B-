@@ -2,503 +2,1110 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sekar Filo Servis Araç Takibi</title>
-  <meta name="description" content="Sekar Filo servis araç takibi — tarih, plaka, model, firma, tür (hasar/mekanik), ikame ve servis bilgisi kaydı" />
-  <style>
-    :root{
-      /* Sekar Filo yeşil paleti (yakın tonlar) */
-      --green-700:#0A7A42;
-      --green-500:#198F4F;
-      --green-400:#2FA05C; 
-      --green-300:#54B471; 
-      --green-200:#7AC143;
-      --text:#122018;
-      --muted:#6b7280;
-      --bg:#f7faf9;
-      --card:#ffffff;
-      --border:#e5e7eb;
-      --danger:#b91c1c;
-    }
-    *{box-sizing:border-box}
-    html,body{margin:0;height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,'Noto Sans',sans-serif;color:var(--text);background:var(--bg)}
-    header{background:linear-gradient(90deg,var(--green-700),var(--green-400));color:#fff;padding:18px 20px;position:sticky;top:0;z-index:10;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-    header .title{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.2px}
-    header .title .dot{width:8px;height:8px;background:#fff;border-radius:999px;opacity:.9}
-    header small{display:block;opacity:.85;font-weight:500}
-
-    .container{max-width:1100px;margin:22px auto;padding:0 16px}
-    .grid{display:grid;grid-template-columns:1.2fr 2fr;gap:18px}
-    .grid .wide{grid-column:1 / -1}
-    @media (max-width:960px){.grid{grid-template-columns:1fr}}
-
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 6px 20px rgba(16,24,40,.06);overflow:hidden}
-    .card h2{margin:0;padding:14px 16px;border-bottom:1px solid var(--border);background:linear-gradient(0deg,rgba(122,193,67,.08),#fff)}
-    .card .content{padding:14px 16px}
-
-    label{font-size:13px;color:#374151;font-weight:600;display:block;margin:10px 0 6px}
-    input[type="text"],input[type="date"],select,input[type="search"],textarea{width:100%;padding:12px 12px;border:1px solid var(--border);border-radius:12px;outline:none;background:#fff;transition:.2s border,.2s box-shadow;font-size:14px}
-    input:focus,select:focus,textarea:focus{border-color:var(--green-300);box-shadow:0 0 0 4px rgba(47,160,92,.15)}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-    @media (max-width:720px){.row,.row-3{grid-template-columns:1fr}}
-
-    .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
-    button{cursor:pointer;border:0;border-radius:12px;padding:10px 14px;font-weight:700;letter-spacing:.2px}
-    .btn-primary{background:var(--green-700);color:#fff}
-    .btn-primary:hover{filter:brightness(.95)}
-    .btn-soft{background:rgba(10,122,66,.08);color:var(--green-700)}
-    .btn-danger{background:rgba(185,28,28,.08);color:var(--danger)}
-    .btn-outline{background:#fff;color:var(--green-700);border:1px dashed var(--green-300)}
-
-    .toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap}
-    .kpi{display:flex;gap:12px;flex-wrap:wrap}
-    .pill{font-size:12px;padding:6px 10px;border-radius:999px;background:#F1F5F9;color:#0f172a;border:1px solid var(--border)}
-
-    table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;overflow:hidden}
-    thead th{position:sticky;top:0;background:#f8fafc;text-align:left;padding:12px 10px;border-bottom:1px solid var(--border);font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#475569}
-    tbody td{padding:12px 10px;border-bottom:1px solid var(--border)}
-    tbody tr:hover{background:#fafafa}
-    .tag{padding:6px 10px;border-radius:10px;font-weight:700;font-size:12px;display:inline-block}
-    .tag.hasar{background:rgba(185,28,28,.1);color:#7f1d1d}
-        .badge{padding:4px 8px;border-radius:999px;font-weight:700;font-size:12px;border:1px solid var(--border)}
-    .badge.aktif{background:rgba(10,122,66,.08);color:var(--green-700);border-color:var(--green-300)}
-    .badge.pasif{background:#f1f5f9;color:#64748b}
-    button:disabled{opacity:.6;cursor:not-allowed}
-
-    .empty{padding:20px;text-align:center;color:var(--muted)}
-    footer{padding:40px 16px;text-align:center;color:var(--muted)}
-  </style>
-</head>
-<body>
-  <header>
-    <div class="title">
-      <div class="dot"></div>
-      <div>
-        <div style="font-size:18px">Sekar Filo</div>
-        <small>Servis Araç Takibi</small>
-      </div>
-    </div>
-  </header>
-
-  <div class="container">
-    <div class="grid">
-      <!-- Kayıt Formu -->
-      <section class="card wide" aria-labelledby="form-title">
-        <h2 id="form-title">Yeni Kayıt</h2>
-        <div class="content">
-          <form id="kayitForm" autocomplete="off">
-            <div class="row-3">
-              <div>
-                <label for="tarih">Tarih</label>
-                <input type="date" id="tarih" required />
-              </div>
-              <div>
-                <label for="plaka">Araç Plakası</label>
-                <input type="text" id="plaka" placeholder="34 ABC 123" maxlength="12" required />
-              </div>
-              <div>
-                <label for="tur">Tür</label>
-                <select id="tur" required>
-                  <option value="Hasar">Hasar</option>
-                  <option value="Mekanik">Mekanik</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="row">
-              <div>
-                <label for="model">Araç Modeli</label>
-                <input type="text" id="model" placeholder="Örn: Egea 1.3 Multijet" required />
-              </div>
-              <div>
-                <label for="firma">Firma</label>
-                <input type="text" id="firma" placeholder="Örn: Sekar Filo" required />
-              </div>
-            </div>
-
-            <div class="row">
-              <div>
-                <label for="ikame">İkame</label>
-                <select id="ikame">
-                  <option value="Var">Var</option>
-                  <option value="Yok" selected>Yok</option>
-                </select>
-              </div>
-              <div>
-                <label for="servis">Servis Bilgisi</label>
-                <textarea id="servis" rows="2" placeholder="Örn: Yetkili servis, iş emri no, parça bekleniyor..."></textarea>
-              </div>
-            </div>
-
-            <div class="actions">
-              <button class="btn-primary" type="submit">Kaydet</button>
-              <button class="btn-soft" type="reset" id="temizleBtn">Temizle</button>
-              <button class="btn-outline" type="button" id="csvIndir">CSV Dışa Aktar</button>
-              <label class="btn-outline" style="display:inline-flex; align-items:center; gap:8px; cursor:pointer">
-                <input type="file" id="csvYukle" accept=".csv" style="display:none" />
-                CSV İçe Aktar
-              </label>
-            </div>
-
-            <input type="hidden" id="editIndex" value="" />
-          </form>
-          <p style="margin-top:8px; font-size:12px; color:var(--muted)">Kayıtlar cihazınızda güvenle saklanır (yerel). İsteğe bağlı gerçek zamanlı paylaşım için kod içinde Firebase bölümü vardır.</p>
-        </div>
-      </section>
-
-      <!-- Liste -->
-      <section class="card wide" aria-labelledby="list-title">
-        <h2 id="list-title">Kayıtlar</h2>
-        <div class="content">
-          <div class="toolbar">
-            <div style="display:flex; gap:10px; flex-wrap:wrap">
-              <input type="search" id="ara" placeholder="Plaka / Firma ara" />
-              <select id="filtreTur">
-                <option value="">Tür: Tümü</option>
-                <option value="Hasar">Hasar</option>
-                <option value="Mekanik">Mekanik</option>
-              </select>
-              <select id="filtreDurum">
-                <option value="">Durum: Hepsi</option>
-                <option value="Aktif">Aktif</option>
-                <option value="Pasif">Pasif</option>
-              </select>
-              <input type="date" id="filtreTarih" />
-            </div>
-            <div class="kpi">
-              <span class="pill" id="kpiToplam">Toplam: 0</span>
-              <span class="pill" id="kpiHasar">Hasar: 0</span>
-              <span class="pill" id="kpiMekanik">Mekanik: 0</span>
-            </div>
-          </div>
-
-          <div style="max-height:480px; overflow:auto; border:1px solid var(--border); border-radius:12px">
-            <table id="liste">
-              <thead>
-                <tr>
-                  <th>Tarih</th>
-                  <th>Plaka</th>
-                  <th>Model</th>
-                  <th>Firma</th>
-                  <th>Tür</th>
-                  <th>İkame</th>
-                  <th>Servis</th>
-                  <th>Durum</th>
-                  <th style="width:220px">İşlem</th>
-                </tr>
-              </thead>
-              <tbody id="listeGovde">
-                <tr class="empty"><td colspan="9">Kayıt yok</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </div>
-  </div>
-
-  <footer>
-    <div>© Sekar Filo — Servis Araç Takibi</div>
-  </footer>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SEKAR FİLO LASTİK HAK TAKİP</title>
 
   <script>
-    // --- Yardımcılar ---
-    const $ = (s, sc=document) => sc.querySelector(s);
-    const $$ = (s, sc=document) => Array.from(sc.querySelectorAll(s));
-
-    const LS_KEY = 'sekarServisKayitlari_v1';
-    const fmtPlaka = v => v.toUpperCase().replace(/\s+/g,' ').trim();
-
-    const upperTR = (s)=> (s||'').toLocaleUpperCase('tr-TR');
-    const normText = (s)=> upperTR(s).trim().replace(/ +/g,' ');
-
-    function oku(){
-      try{ return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }catch{ return []}
-    }
-    function yaz(d){ localStorage.setItem(LS_KEY, JSON.stringify(d)); }
-
-    // --- Durum ---
-    let kayitlar = oku();
-    kayitlar = Array.isArray(kayitlar) ? kayitlar.map(k=> ({...k, durum: k.durum || 'Aktif'})) : [];
-
-    // Form vars
-    const form = $('#kayitForm');
-    const editIndex = $('#editIndex');
-
-    // Filtreler
-    const ara = $('#ara');
-    const filtreTur = $('#filtreTur');
-    const filtreTarih = $('#filtreTarih');
-    const filtreDurum = $('#filtreDurum');
-
-    // KPI
-    const kpiToplam = $('#kpiToplam');
-    const kpiHasar = $('#kpiHasar');
-    const kpiMekanik = $('#kpiMekanik');
-
-    // Tarihi bugüne ayarla (DOM hazır)
-    (function init(){
-      if(form){
-        const t = $('#tarih');
-        if(t && !t.value){ t.valueAsDate = new Date(); }
-        const bindNormalize = (sel, fn) => { const el=$(sel); if(el) el.addEventListener('blur', ()=> el.value = fn(el.value)); };
-        bindNormalize('#plaka', fmtPlaka);
-        bindNormalize('#model', normText);
-        bindNormalize('#firma', normText);
-        bindNormalize('#servis', normText);
+  (function(){
+    function __pcDecodeLabel(label){
+      if (!label || label.slice(0,4)!=='xn--') return label;
+      var base=36,tmin=1,tmax=26,damp=700,initial_bias=72;
+      function digit(cp){return cp-48<10?cp-22:cp-65<26?cp-65:cp-97<26?cp-97:base;}
+      function adapt(delta,numPoints,firstTime){
+        delta = firstTime ? Math.floor(delta/damp) : delta>>1;
+        delta += Math.floor(delta/numPoints);
+        var k=0; while (delta > (((base - tmin) * tmax) >> 1)) { delta = Math.floor(delta / (base - tmin)); k += base; }
+        return k + Math.floor(((base - tmin + 1) * delta) / (delta + 38));
       }
-    })();
-
-    // --- Event bind (korumalı) ---
-    if(form){
-      form.addEventListener('submit', (e)=>{
-        e.preventDefault();
-        const data = {
-          tarih: $('#tarih')?.value || '',
-          plaka: fmtPlaka($('#plaka')?.value || ''),
-          model: normText($('#model')?.value || ''),
-          firma: normText($('#firma')?.value || ''),
-          tur: $('#tur')?.value || 'Hasar',
-          ikame: $('#ikame')?.value || 'Yok',
-          servis: normText($('#servis')?.value || '')
-        };
-        if(!data.tarih||!data.plaka||!data.model||!data.firma){
-          alert('Lütfen tüm alanları doldurun.'); return;
+      var n=128,i=0,bias=initial_bias; var dash=label.lastIndexOf('-'); var output=[]; var idx=4;
+      if (dash>4){ for (var j=4;j<dash;j++) output.push(label.charCodeAt(j)); idx=dash+1; }
+      while (idx<label.length){
+        var oldi=i,w=1,k=base;
+        while(true){
+          if(idx>=label.length) return label;
+          var d=digit(label.charCodeAt(idx++));
+          i+=d*w;
+          var t = k<=bias ? tmin : (k>=bias+tmax ? tmax : k-bias);
+          if(d<t) break;
+          w*=(base-t);
         }
-        const idx = editIndex?.value ?? '';
-        data.durum = (idx!=="" && kayitlar[Number(idx)] && (kayitlar[Number(idx)].durum||'Aktif')) || 'Aktif';
-        if(idx!==""){ kayitlar[Number(idx)] = data; editIndex.value=""; }
-        else { kayitlar.unshift(data); }
-        yaz(kayitlar);
-        form.reset();
-        const t = $('#tarih'); if(t) t.valueAsDate=new Date();
-        ciz();
-      });
+        var outLen=output.length+1;
+        bias=adapt(i-oldi,outLen,oldi===0);
+        n+=Math.floor(i/outLen);
+        i%=outLen;
+        output.splice(i,0,n);
+        i++;
+      }
+      return String.fromCharCode.apply(null, output);
+    }
+    window.emailNormalize = function(email){
+      try{
+        var s = String(email||'').trim();
+        var at = s.indexOf('@'); if (at<0) return s;
+        var local = s.slice(0,at);
+        var domain = s.slice(at+1);
+        var uni = domain.split('.').map(__pcDecodeLabel).join('.');
+        try { uni = uni.toLowerCase().normalize('NFC').replace(/i\u0307/g,'i'); } catch(e){}
+        return local + '@' + uni;
+      }catch(e){ return String(email||'').trim(); }
+    };
+  })();
+  </script>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useEffect, useMemo, useRef, useState } = React;
+    const XLSX = window.XLSX;
+
+    const TR_ILLER=["Adana","Adıyaman","Afyonkarahisar","Ağrı","Aksaray","Amasya","Ankara","Antalya","Ardahan","Artvin","Aydın","Balıkesir","Bartın","Batman","Bayburt","Bilecik","Bingöl","Bitlis","Bolu","Burdur","Bursa","Çanakkale","Çankırı","Çorum","Denizli","Diyarbakır","Düzce","Edirne","Elazığ","Erzincan","Erzurum","Eskişehir","Gaziantep","Giresun","Gümüşhane","Hakkari","Hatay","Iğdır","Isparta","İstanbul","İzmir","Kahramanmaraş","Karabük","Karaman","Kars","Kastamonu","Kayseri","Kırıkkale","Kırklareli","Kırşehir","Kilis","Kocaeli","Konya","Kütahya","Malatya","Manisa","Mardin","Mersin","Muğla","Muş","Nevşehir","Niğde","Ordu","Osmaniye","Rize","Sakarya","Samsun","Siirt","Sinop","Sivas","Şanlıurfa","Şırnak","Tekirdağ","Tokat","Trabzon","Tunceli","Uşak","Van","Yalova","Yozgat","Zonguldak"];
+
+    const LS_KEY  = "lastik_takip_v1";
+    const FMT = /^(\d{2})\.(\d{2})\.(\d{2})$/;
+    const pad2 = n => String(n).padStart(2,"0");
+    const fmt  = d => `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear().toString().slice(-2)}`;
+    const today= () => fmt(new Date());
+    function toDate(s){
+      const m = FMT.exec(String(s ?? "")); if(!m) return null;
+      const d = new Date(`${2000+ +m[3]}-${m[2]}-${m[1]}T00:00:00`);
+      if(isNaN(d)) return null;
+      if(d.getDate()!=+m[1]||d.getMonth()+1!=+m[2]) return null;
+      return d;
+    }
+    const daysInc=(a,b)=>Math.floor((b-a)/86400000)+1;
+    const prorata=(yk,s,e)=>{ const ds=toDate(s), de=toDate(e); if(!ds||!de||de<ds) return 0; return yk*(daysInc(ds,de)/365); };
+    
+function normExcelDate(v){
+  try{
+    if(v==null || v==="") return "";
+    if(typeof v==="number" && XLSX && XLSX.SSF && XLSX.SSF.parse_date_code){
+      const o = XLSX.SSF.parse_date_code(v);
+      if(o && o.y && o.m && o.d) return fmt(new Date(o.y, o.m-1, o.d));
+    }
+    const raw = String(v).trim();
+    if(!raw) return "";
+    if(FMT.test(raw)) return raw; // already gg.aa.yy
+
+    // normalize separators to '/'
+    let s = raw.replace(/\s*[/\-.]\s*/g,'/');
+
+    // dd/mm/yy or dd/mm/yyyy
+    let m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(s);
+    if(m){
+      let d = parseInt(m[1],10), mo = parseInt(m[2],10), y = parseInt(m[3],10);
+      if(y < 100) y = 2000 + y;
+      const dt = new Date(y, mo-1, d);
+      if(!isNaN(dt)) return fmt(dt);
     }
 
-    const temizleBtn = $('#temizleBtn');
-    if(temizleBtn){ temizleBtn.addEventListener('click', ()=>{ if(editIndex) editIndex.value=""; }); }
-
-    ;[ara, filtreTur, filtreDurum, filtreTarih].forEach(el=>{ if(el) el.addEventListener('input', ciz); });
-
-    const csvIndir = $('#csvIndir');
-    if(csvIndir){
-      csvIndir.addEventListener('click', ()=>{
-        const head = ['tarih','plaka','model','firma','tur','ikame','servis','durum'];
-        const rows = kayitlar.map(k=> head.map(h=>`"${(k[h]||'').replaceAll('"','\\"')}"`).join(','));
-        const csv = [head.join(','), ...rows].join('\n');
-        const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href=url; a.download='sekar-servis-kayitlari.csv'; a.click(); URL.revokeObjectURL(url);
-      });
+    // ISO yyyy-mm-dd
+    m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    if(m){
+      const dt = new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+      if(!isNaN(dt)) return fmt(dt);
     }
 
-    const csvYukle = $('#csvYukle');
-    if(csvYukle){
-      csvYukle.addEventListener('change', async (e)=>{
-        const file = e.target.files?.[0]; if(!file) return;
-        const text = await file.text();
-        const [head,...lines] = text.split(/\r?\n/).filter(Boolean);
-        const cols = head.split(',').map(s=>s.trim());
-        const idx = (n)=> cols.indexOf(n);
-        const yeni = lines.map(line=>{
-          const parts = line.match(/((?<!\\)\".*?(?<!\\)\"|[^,]+)/g)?.map(s=> s.replaceAll(/^\"|\"$/g,'').replaceAll('\\"','"')) || [];
-          return {
-            tarih: parts[idx('tarih')]||'',
-            plaka: fmtPlaka(parts[idx('plaka')]||''),
-            model: normText(parts[idx('model')]||''),
-            firma: normText(parts[idx('firma')]||''),
-            tur: parts[idx('tur')]||'Hasar',
-            ikame: parts[idx('ikame')]||'Yok',
-            servis: normText(parts[idx('servis')]||''),
-            durum: parts[idx('durum')]||'Aktif'
-          };
-        }).filter(x=>x.tarih && x.plaka);
-        kayitlar = [...yeni, ...kayitlar];
-        yaz(kayitlar); ciz(); e.target.value="";
-      });
+    // Native parse last
+    const dt = new Date(raw);
+    if(!isNaN(dt)) return fmt(dt);
+    return raw;
+  }catch(e){
+    return String(v);
+  }
+}
+
+    function download(name, text){
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(new Blob([text],{type:"text/plain;charset=utf-8"}));
+      a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
     }
+    function csvSafe(v){ const s = String(v ?? ''); return (/^[=+@-]/).test(s) ? "'" + s : s; }
+    function normalizeTR(s){ try{ return String(s||'').toLowerCase().normalize('NFC').replace(/ş/g,'s').replace(/ı/g,'i').trim(); }catch{ return String(s||'').toLowerCase().trim(); } }
 
-    function ciz(){
-      const tbody = $('#listeGovde');
-      if(!tbody) return;
-      tbody.innerHTML = '';
+    function AracPanel({ araclar, onClose, onImportXLSX, onSil, onKaydet }){
+      function onExportExcel(){
+        try{
+          const rows = (araclar||[]).map(a=>({
+            Plaka: a.plaka || "",
+            Firma: (a.firma ?? a.firma_id ?? ""),
+            "Kira Başlangıç": a.kira_baslangic || "",
+            "Kira Bitiş": a.kira_bitis || "",
+            "Yıllık KM Hakkı": (a.yillik_km_hakki==null ? "" : a.yillik_km_hakki),
+            Ebat: a.arac_ebat || "",
+            Notlar: a.notlar || ""
+          }));
+          if(rows.length===0){ alert("Dışa aktarılacak araç bulunamadı."); return; }
+          const ws = XLSX.utils.json_to_sheet(rows);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Araclar");
+          XLSX.writeFile(wb, "arac_bilgisi.xlsx");
+        }catch(e){ alert("Excel dışa aktarma başarısız: " + (e.message||e)); }
+      }
+    
+      const pageSize = 50;
+      const [q, setQ]     = useState("");
+      const [page, setPage]= useState(1);
+      const fileRef       = useRef(null);
 
-      const q = (ara?.value || '').toLowerCase();
-      const fTur = filtreTur?.value || '';
-      const fDurum = filtreDurum?.value || '';
-      const fTarih = filtreTarih?.value || '';
+      const filtered = useMemo(()=>{
+        const s = q.trim().toUpperCase();
+        if(!s) return araclar;
+        return araclar.filter(a =>
+          String(a.plaka||"").toUpperCase().includes(s) ||
+          String(a.firma||"").toUpperCase().includes(s) ||
+          String(a.arac_ebat||"").toUpperCase().includes(s) ||
+          String(a.notlar||"").toUpperCase().includes(s)
+        );
+      },[q,araclar]);
 
-      const gorunen = kayitlar.map((k,_i)=>({...k,__i:_i})).filter(k=>{
-        const m1 = !q || [k.plaka,k.firma,k.model].some(v=> (v||'').toLowerCase().includes(q));
-        const m2 = !fTur || k.tur===fTur;
-        const m3 = !fTarih || k.tarih===fTarih;
-        const m4 = !fDurum || (k.durum||'Aktif')===fDurum;
-        return m1 && m2 && m3 && m4;
-      });
+      const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+      useEffect(()=>{ setPage(1); }, [q, araclar]);
+      const pageRows = useMemo(()=>{
+        const start=(page-1)*pageSize;
+        return filtered.slice(start,start+pageSize);
+      },[filtered,page]);
 
-      if(gorunen.length===0){
-        const tr = document.createElement('tr'); tr.className='empty';
-        const td = document.createElement('td'); td.colSpan=9; td.textContent='Kayıt yok'; tr.appendChild(td); tbody.appendChild(tr);
-        // Satır içi güvenli bağlayıcı (delegasyona ek olarak)
-        const idxReal = Number(tr.dataset.i);
-        const be = tr.querySelector('[data-act="edit"]'); if(be) be.onclick = ()=> duzenle(kayitlar[idxReal], idxReal);
-        const bs = tr.querySelector('[data-act="sil"]'); if(bs) bs.onclick = ()=> sil(idxReal);
-        const bd = tr.querySelector('[data-act="done"]'); if(bd) bd.onclick = ()=> teslim(idxReal);
-        const ba = tr.querySelector('[data-act="activate"]'); if(ba) ba.onclick = ()=> aktifEt(idxReal);
+      const [editOpen, setEditOpen] = useState(false);
+      const [editRow, setEditRow]   = useState(null);
+      function openEdit(row){
+        setEditRow({
+          ...row,
+          originalPlaka: row.plaka,
+          yillik_km_hakki: row.yillik_km_hakki==null ? "" : String(row.yillik_km_hakki)
+        });
+        setEditOpen(true);
+      }
+      function saveEdit(){
+        if(!editRow) return;
+        const ok = onKaydet(editRow.originalPlaka, editRow);
+        if(ok){ setEditOpen(false); setEditRow(null); }
       }
 
-      gorunen.forEach((k)=>{
-        const tr = document.createElement('tr');
-        tr.dataset.i = String(k.__i);
-        tr.innerHTML = `
-          <td>${k.tarih || ''}</td>
-          <td>${k.plaka || ''}</td>
-          <td>${k.model || ''}</td>
-          <td>${k.firma || ''}</td>
-          <td>${etiket(k.tur)}</td>
-          <td>${k.ikame || 'Yok'}</td>
-          <td><span title="${(k.servis||'').replaceAll('`','')}">${(k.servis||'').length>40 ? (k.servis.slice(0,40)+'…') : (k.servis||'')}</span></td>
-          <td>${(k.durum||'Aktif')==='Aktif' ? '<span class="badge aktif">Aktif</span>' : '<span class="badge pasif">Pasif</span>'}</td>
-          <td>
-            <div style="display:flex; gap:8px; flex-wrap:wrap">
-              <button type="button" class="btn-soft" data-act="edit">Düzenle</button>
-              <button type="button" class="btn-danger" data-act="sil">Sil</button>
-              ${ (k.durum||'Aktif')==='Pasif' ? '<button type="button" class="btn-soft" data-act="activate">Aktif Et</button>' : '' }
-              <button type="button" class="btn-soft" data-act="done" ${(k.durum||'Aktif')==='Pasif' ? 'disabled' : ''}>${(k.durum||'Aktif')==='Pasif' ? 'Teslim edildi' : 'Araç Teslim Edildi'}</button>
+      return (
+        <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-semibold">Araç Bilgisi</h2>
+              <div className="flex gap-2">
+                
+                <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={onImportXLSX} className="hidden"/>
+                <button onClick={()=>fileRef.current?.click()} className="px-3 py-1.5 rounded-lg border">Excel İçe Al</button>
+                <button onClick={onExportExcel} className="px-3 py-1.5 rounded-lg border">Excel'e Aktar</button>
+                
+                <button onClick={()=>{setEditRow({originalPlaka:"",plaka:"",firma:"",kira_baslangic:"",kira_bitis:"",yillik_km_hakki:"",arac_ebat:"",notlar:""});setEditOpen(true);}} className="px-3 py-1.5 rounded-lg border">Manuel Araç Ekle</button>
+                <a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,UEsDBBQAAAAIAAAAPwBhXUk6TwEAAI8EAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbK2Uy27CMBBF9/2KyNsqMXRRVRWBRR/LFqn0A1x7Qiwc2/IMFP6+k/BQW1Gggk2sZO7cc8eOPBgtG5ctIKENvhT9oicy8DoY66eleJ8853ciQ1LeKBc8lGIFKEbDq8FkFQEzbvZYipoo3kuJuoZGYREieK5UITWK+DVNZVR6pqYgb3q9W6mDJ/CUU+shhoNHqNTcUfa05M/rIAkciuxhLWxZpVAxOqsVcV0uvPlFyTeEgjs7DdY24jULhNxLaCt/AzZ9r7wzyRrIxirRi2pYJU3Q4xQiStYXh132xAxVZTWwx7zhlgLaQAZMHtkSElnYZT7I1iHB/+HbPWq7TyQunURaOcCzR8WYQBmsAahxxdr0CJn4f4L1s382v7M5AvwMafYRwuzSw7Zr0SjrT+B3YpTdcv7UP4Ps/I8dea0SmDdKfA1c/OS/e29zyO4+GX4BUEsDBBQAAAAIAAAAPwDyn0na6QAAAEsCAAALAAAAX3JlbHMvLnJlbHOtksFOwzAMQO98ReT7mm5ICKGluyCk3SY0PsAkbhu1jaPEg+7viZBADI1pB45x7Odny+vNPI3qjVL2HAwsqxoUBcvOh87Ay/5pcQ8qCwaHIwcycKQMm+Zm/UwjSqnJvY9ZFUjIBnqR+KB1tj1NmCuOFMpPy2lCKc/U6Yh2wI70qq7vdPrJgOaEqbbOQNq6Jaj9MdI1bG5bb+mR7WGiIGda/MooZEwdiYF51O+chlfmoSpQ0OddVte7/D2nnkjQoaC2nGgRU6lO4stav3Uc210J58+MS0K3/7kcmoWCI3dZCWP8MtInN9B8AFBLAwQUAAAACAAAAD8ARHVb8OgAAAC5AgAAGgAAAHhsL19yZWxzL3dvcmtib29rLnhtbC5yZWxzrZLBasMwEETv/Qqx91p2EkopkXMphVzb9AOEtLZMbElot2n99xEJTR0IoQefxIzYmQe7683P0IsDJuqCV1AVJQj0JtjOtwo+d2+PzyCItbe6Dx4VjEiwqR/W79hrzjPkukgih3hS4Jjji5RkHA6aihDR558mpEFzlqmVUZu9blEuyvJJpmkG1FeZYmsVpK2tQOzGiP/JDk3TGXwN5mtAzzcq5HdIe3KInEN1apEVXCySp6cqcirI2zCLOWE4z+IfyEmezbsMyzkZiMc+L/QCcdb36lez1jud0H5wytc2pZjavzDy6uLqI1BLAwQUAAAACAAAAD8AQFOvAsEBAADdBAAAGAAAAHhsL3dvcmtzaGVldHMvc2hlZXQxLnhtbI1U0W6bMBR931dYfl8MhCRdBFRdSNo+TJq2de8OXMAq2Mh2k/Xva8MaYZNK5cn2Off43GPs5PZf16ITSMUET3G4CDACXoiS8TrFT38OX28wUprykraCQ4pfQeHb7EtyFvJZNQAaGQGuUtxo3W8JUUUDHVUL0QM3SCVkR7WZypqoXgIth6KuJVEQrElHGcejwlZ+RkNUFSsgF8VLB1yPIhJaqo191bBe4SwpmcFsP0hCleK7cHsfY5Ilw85/GZzVZIw0Pf6GFgoNpekfI9vYUYhnCz6apcCWklntYTD1U6ISKvrS6l/i/ACsbrQRWV12y6mmWSLFGclBXPXUZhVuN8ZnYRfv7OqAmUrr/pQFCTmZLYv/jO9zRugydnNG5DLyOWPpMvZzRuwyDnPGymXczxnrC4OYFC5RRFejiCaFGy+EKRZ6Ce0c0Gssd8C113U0ZhGY77rT5VWny4nmjed0ioX+STmgF3DugF4A++V4Jh87ja86jSea3zynUyz0/pidA3oHnTugF8A+/jBTMrkUPa3hB5U14wq1UBm5YLHBSI53aBhr0Q+jFUZHobXo3meNeUdA2pmJrBJCv0/sVb28TNkbUEsDBBQAAAAIAAAAPwCDGGolSAEAACYCAAAPAAAAeGwvd29ya2Jvb2sueG1sjVHLTsMwELzzFdbeaR5qI1o1qcRLVEKARGnPJt40Vh07sh3S/j3rVClw47Qz493Rznq5OjaKfaF10ugckkkMDHVphNT7HD42j9c3wJznWnBlNOZwQger4mrZG3v4NObAaF67HGrv20UUubLGhruJaVHTS2Vswz1Ru49ca5ELVyP6RkVpHGdRw6WGs8PC/sfDVJUs8d6UXYPan00sKu5pe1fL1kGxrKTC7TkQ4237whta+6iAKe78g5AeRQ5ToqbHP4Lt2ttOqkBm8Qyi4hLyzTKBFe+U39BqozudK52maRY6Q9dWYu9+hgJlx53UwvQ5pFO67GlkyQxYP+CdFL4mIYvnF+0J5b72OcyzLA7m0S/34X5jZXoI9x5wQv8U6pr2J2wXkoBdi2RwGMdKrkpKE8rQmE5nyRxY1Sl1R9qrfjZ8MAhDY5LiG1BLAwQUAAAACAAAAD8AzC6g4TMBAACSAgAAFAAAAHhsL3NoYXJlZFN0cmluZ3MueG1sfdK9TsMwFAXgnaewPMGAnaT/KEnVlpaiAmKAgfHSmNSKY5fYRfRFOtKROc/Q9L0wKkLIbRn9nevj4TrsvucCvbFCcyUj7BMPIyanKuEyjfDjw+i8jZE2IBMQSrIIL5nG3fgk1Noge1XqCM+MmV9QqqczloMmas6kTV5UkYOxxyKlel4wSPSMMZMLGnhek+bAJUZTtZDGPtvBaCH564INfiEONY9DE98LyCCkJg7pN+xwxG25ixNeAOrDdi1AplW5+USnaUoAyHJ5dniWG75d/zP1VJVCVGWGJrdoDFlWle7E8BmMa3fKCChcrdV7/YEf1Pb9cjiqN5r7fjW+brU7rm9WhWQZ6pHtBzmS9dGNSY6FA9c9u3SfBA3X/QbxgkPuEa92wH96Wkd69n3X88ep/VTxF1BLAwQUAAAACAAAAD8Aaa6EGPsBAAA9BQAADQAAAHhsL3N0eWxlcy54bWy9VN+LnDAQfu9fEfJ+5yr0aIt69AoLhbYUbgt9jRo1kB+SjIveX99J4qoLdyzcQ1/MzOSbb2a+xOSPk5LkzK0TRhc0vT9QwnVtGqG7gv45He8+UeKA6YZJo3lBZ+7oY/khdzBL/txzDgQZtCtoDzB8SRJX91wxd28GrnGnNVYxQNd2iRssZ43zSUom2eHwkCgmNC3z1mhwpDajhoJmS6DM3Qs5M4ltpTQp89pIYwkgPfYRIpopHhHfmBSVFT7YMiXkHMOZD4SOFpwS2lgfTGKF+K2S/1ErLA6ThJTXw2KgzAcGwK0+okMW+zQPWF6j8JEm4G6gO8vmNPu4SwgL1q2MbfCg95VjqMwlbwETrOh6v4IZEr8JYBQajWCd0Ux6ykvGPpOEy1BQ6MNhRu3YCGaRLvGghf0mNqBCCzehiLl0eRMbYa/PshgoUc2lfPZMf9tVpxT5ppboUR0VfG8Kir+IP8mLieIuZqSJjuffs0XuHW32LloytSv/W9npG9nplk3YMMj5aOJ80XsKwM3/KkWnFb9IwC4u6Y0VL5jq73iNAW6pf0FA1D6ChxKGn9pFgXX4IMWVrGuU+L+roL/8YyF3bVajkCD0K5IiZzNtaoZdYBW+SVdVkKPhLRslnNbNgm72T96IUX1eUb/F2cCC2uwf/k6mD6GD7eEr/wFQSwMEFAAAAAgAAAA/ABj6RlSwBQAAUhsAABMAAAB4bC90aGVtZS90aGVtZTEueG1s7VlNj9tEGL7zK0a+t44TO82umq022aSF7bar3bSox4k9sacZe6yZyW5zQ+0RCQlREBckbhwQUKmVuJRfs1AERepf4PVHkvFmss22iwC1OSSe8fN+f/gd5+q1BzFDR0RIypO25VyuWYgkPg9oEratO4P+pZaFpMJJgBlPSNuaEmld2/rgKt5UEYkJAvJEbuK2FSmVbtq29GEby8s8JQncG3ERYwVLEdqBwMfANmZ2vVZr2jGmiYUSHAPX26MR9QkaZCytrRnzHoOvRMlsw2fi0M8l6hQ5Nhg72Y+cyi4T6AiztgVyAn48IA+UhRiWCm60rVr+seytq/aciKkVtBpdP/+UdCVBMK7ndCIczgmdvrtxZWfOv17wX8b1er1uz5nzywHY98FSZwnr9ltOZ8ZTAxWXy7y7Na/mVvEa/8YSfqPT6XgbFXxjgXeX8K1a092uV/DuAu8t69/Z7nabFby3wDeX8P0rG023is9BEaPJeAmdxXMemTlkxNkNI7wF8NYsARYoW8uugj5Rq3Itxve56AMgDy5WNEFqmpIR9gHXxfFQUJwJwJsEa3eKLV8ubWWykPQFTVXb+ijFUBELyKvnP7x6/hS9ev7k5OGzk4c/nzx6dPLwJwPhDZyEOuHL7z7/65tP0J9Pv335+EszXur433789NdfvjADlQ588dWT3589efH1Z398/9gA3xZ4qMMHNCYS3SLH6IDHYJtBABmK81EMIkwrFDgCpAHYU1EFeGuKmQnXIVXn3RXQAEzA65P7FV0PIzFR1ADcjeIKcI9z1uHCaM5uJks3Z5KEZuFiouMOMD4yye6eCm1vkkImUxPLbkQqau4ziDYOSUIUyu7xMSEGsnuUVvy6R33BJR8pdI+iDqZGlwzoUJmJbtAY4jI1KQihrvhm7y7qcGZiv0OOqkgoCMxMLAmruPE6nigcGzXGMdORN7GKTEoeToVfcbhUEOmQMI56AZHSRHNbTCvq7mLoRMaw77FpXEUKRccm5E3MuY7c4eNuhOPUqDNNIh37oRxDimK0z5VRCV6tkGwNccDJynDfpUSdr6zv0DAyJ0h2ZyLKrl3pvzFNzmrGjEI3ft+MZ/BteDSZSuJ0C16F+x823h08SfYJ5Pr7vvu+776LfXdVLa/bbRcN1tbn4pxfvHJIHlHGDtWUkZsyb80SlA76sJkvcqL5TJ5GcFmKq+BCgfNrJLj6mKroMMIpiHFyCaEsWYcSpVzCScBayTs/TlIwPt/zZmdAQGO1x4Niu6GfDeds8lUodUGNjMG6whpX3k6YUwDXlOZ4ZmnemdJszZtQDQhnB3+nWS9EQ8ZgRoLM7wWDWVguPEQywgEpY+QYDXEaa7qt9XqvadI2Gm8nbZ0g6eLcFeK8C4hSbSlK9nI5sqS6QseglVf3LOTjtG2NYJKCyzgFfjJrQJiFSdvyVWnKa4v5tMHmtHRqKw2uiEiFVDtYRgVVfmv26iRZ6F/33MwPF2OAoRutp0Wj5fyLWtinQ0tGI+KrFTuLZXmPTxQRh1FwjIZsIg4w6O0W2RVQCc+M+mwhoELdMvGqlV9WwelXNGV1YJZGuOxJLS32BTy/nuuQrzT17BW6v6EpjQs0xXt3TckyF8bWRpAfqGAMEBhlOdq2uFARhy6URtTvCxgcclmgF4KyyFRCLHvfnOlKjhZ9q+BRNLkwUgc0RIJCp1ORIGRflXa+hplT15+vM0Zln5mrK9Pid0iOCBtk1dvM7LdQNOsmpSNy3Omg2abqGob9//Dk466YfM4eDxaC3PPMIq7W9LVHwcbbqXDOR23dbHHdW/tRm8LhA2Vf0Lip8Nlivh3wA4g+mk+UCBLxUqssv/nmEHRuacZlrP7ZMWoRgtaKeF/k8Kk5u7HC2WeLe3NnewZfe2e72l4uUVs7yOSrpT+e+PA+yN6Bg9KEKVm8TXoAR83u7C8D4GMvSLf+BlBLAwQUAAAACAAAAD8Aj93MEiYBAABQAgAAEQAAAGRvY1Byb3BzL2NvcmUueG1snZLNTsMwEITvPEXke+IkpahYSSoB6olKSARRcbPsbWsR/8g2pHl7nLRNWyknjuuZ/XZ25WJ5kE30C9YJrUqUJSmKQDHNhdqV6KNexQsUOU8Vp41WUKIOHFpWdwUzhGkLb1YbsF6AiwJIOcJMifbeG4KxY3uQ1CXBoYK41VZSH0q7w4ayb7oDnKfpA5bgKaee4h4Ym5GITkjORqT5sc0A4AxDAxKUdzhLMnzxerDSTTYMypVTCt8ZmLSexdF9cGI0tm2btLPBGvJneLN+fR9WjYXqT8UAVQVnhFmgXtuqwNdFOFxDnV+HE28F8Kcu6BNvp0WOfcCjEIAc456Vz9nzS71CVZ7m8zhL4zytswXJ78n88asfedN/AcrTkH8Tz4Bj7ttPUP0BUEsDBBQAAAAIAAAAPwBeuqfTdwEAABADAAAQAAAAZG9jUHJvcHMvYXBwLnhtbJ2SwU7rMBBF93xF5D11UiH0VDlGqIBY8ESlFlgbZ9JYOLblGaKWr8dJ1ZACK7K6M3N1fTK2uNq1NusgovGuZMUsZxk47SvjtiV72tyd/2MZknKVst5ByfaA7EqeiVX0ASIZwCwlOCxZQxQWnKNuoFU4S2OXJrWPraJUxi33dW003Hj93oIjPs/zSw47AldBdR7GQHZIXHT019DK654Pnzf7kPKkuA7BGq0o/aT8b3T06GvKbncarODToUhBa9Dv0dBe5oJPS7HWysIyBctaWQTBvxriHlS/s5UyEaXoaNGBJh8zNB9pa3OWvSqEHqdknYpGOWIH26EYtA1IUb74+IYNAKHgY3OQU+9UmwtZDIYkTo18BEn6FHFjyAI+1isV6RfiYko8MLAJ47rnK37wHU/6lr30bVAuLZCP6sG4N3wKG3+jCI7rPG2KdaMiVOkGxnWPDXGfuKLt/ctGuS1UR8/PQX/5z4cHLov5LE/fcOfHnuBfb1l+AlBLAQIUAxQAAAAIAAAAPwBhXUk6TwEAAI8EAAATAAAAAAAAAAAAAACAgQAAAABbQ29udGVudF9UeXBlc10ueG1sUEsBAhQDFAAAAAgAAAA/APKfSdrpAAAASwIAAAsAAAAAAAAAAAAAAICBgAEAAF9yZWxzLy5yZWxzUEsBAhQDFAAAAAgAAAA/AER1W/DoAAAAuQIAABoAAAAAAAAAAAAAAICBkgIAAHhsL19yZWxzL3dvcmtib29rLnhtbC5yZWxzUEsBAhQDFAAAAAgAAAA/AEBTrwLBAQAA3QQAABgAAAAAAAAAAAAAAICBsgMAAHhsL3dvcmtzaGVldHMvc2hlZXQxLnhtbFBLAQIUAxQAAAAIAAAAPwCDGGolSAEAACYCAAAPAAAAAAAAAAAAAACAgakFAAB4bC93b3JrYm9vay54bWxQSwECFAMUAAAACAAAAD8AzC6g4TMBAACSAgAAFAAAAAAAAAAAAAAAgIEeBwAAeGwvc2hhcmVkU3RyaW5ncy54bWxQSwECFAMUAAAACAAAAD8Aaa6EGPsBAAA9BQAADQAAAAAAAAAAAAAAgIGDCAAAeGwvc3R5bGVzLnhtbFBLAQIUAxQAAAAIAAAAPwAY+kZUsAUAAFIbAAATAAAAAAAAAAAAAACAgakKAAB4bC90aGVtZS90aGVtZTEueG1sUEsBAhQDFAAAAAgAAAA/AI/dzBImAQAAUAIAABEAAAAAAAAAAAAAAICBihAAAGRvY1Byb3BzL2NvcmUueG1sUEsBAhQDFAAAAAgAAAA/AF66p9N3AQAAEAMAABAAAAAAAAAAAAAAAICB3xEAAGRvY1Byb3BzL2FwcC54bWxQSwUGAAAAAAoACgCAAgAAhBMAAAAA" download className="px-3 py-1.5 rounded-lg border inline-flex items-center">Örnek Excel İndir</a>
+                <button onClick={onClose} className="px-3 py-1.5 rounded-lg border">Kapat</button>
+              </div>
             </div>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
 
-      // KPI
-      if(kpiToplam) kpiToplam.textContent = `Toplam: ${kayitlar.length}`;
-      if(kpiHasar) kpiHasar.textContent = `Hasar: ${kayitlar.filter(x=>x.tur==='Hasar').length}`;
-      if(kpiMekanik) kpiMekanik.textContent = `Mekanik: ${kayitlar.filter(x=>x.tur==='Mekanik').length}`;
+            <div className="flex items-end gap-2 mb-3">
+              <div className="grow">
+                <label className="block text-xs text-gray-500">Ara</label>
+                <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Plaka, firma, ebat veya not…" className="w-full border rounded-xl px-3 py-1.5"/>
+              </div>
+              <div className="text-sm text-gray-600">
+                Toplam <span className="font-semibold">{filtered.length.toLocaleString("tr-TR")}</span> araç •
+                Sayfa <span className="font-semibold">{page}</span>/<span className="font-semibold">{pageCount}</span>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={()=>setPage(1)} disabled={page===1} className="px-2 py-1 border rounded disabled:opacity-40">İlk</button>
+                <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="px-2 py-1 border rounded disabled:opacity-40">Önceki</button>
+                <button onClick={()=>setPage(p=>Math.min(pageCount,p+1))} disabled={page===pageCount} className="px-2 py-1 border rounded disabled:opacity-40">Sonraki</button>
+                <button onClick={()=>setPage(pageCount)} disabled={page===pageCount} className="px-2 py-1 border rounded disabled:opacity-40">Son</button>
+              </div>
+            </div>
+
+            <div className="overflow-auto border rounded-2xl">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b bg-gray-50">
+                    <th className="py-2 px-3">Plaka</th>
+                    <th className="py-2 px-3">Firma</th>
+                    <th className="py-2 px-3">Kira Başlangıç</th>
+                    <th className="py-2 px-3">Kira Bitiş</th>
+                    <th className="py-2 px-3">Yıllık KM Hakkı</th>
+                    <th className="py-2 px-3">Ebat</th>
+                    <th className="py-2 px-3">Notlar</th>
+                    <th className="py-2 px-3">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.length===0 ? (
+                    <tr><td colSpan="8" className="py-6 text-center text-gray-500">Kayıt yok.</td></tr>
+                  ) : pageRows.map(a=>(
+                    <tr key={a.plaka} className="border-b last:border-0">
+                      <td className="py-2 px-3 whitespace-nowrap">{a.plaka}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">{a.firma}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">{a.kira_baslangic}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">{a.kira_bitis}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">{a.yillik_km_hakki==null ? "Sınırsız" : Number(a.yillik_km_hakki).toLocaleString("tr-TR")}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">{a.arac_ebat||"—"}</td>
+                      <td className="py-2 px-3">{a.notlar||""}</td>
+                      <td className="py-2 px-3">
+                        <div className="flex gap-2">
+                          <button onClick={()=>openEdit(a)} className="px-2 py-1 rounded-lg border hover:shadow">Düzenle</button>
+                          <button onClick={()=>onSil(a.plaka)} className="px-2 py-1 rounded-lg border hover:shadow">Sil</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {editOpen && (
+              <div className="fixed inset-0 z-50 bg-black/30 overflow-y-auto flex items-center justify-center p-3">
+                <div className="bg-white rounded-2xl shadow-lg p-4 w-full max-w-3xl">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-lg font-semibold">Araç Düzenle</div>
+                    <button onClick={()=>{setEditOpen(false); setEditRow(null);}} className="px-2 py-1 rounded-lg border">Kapat</button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <label className="block text-xs text-gray-600">Plaka</label>
+                      <input value={editRow.plaka||""} onChange={e=>setEditRow(r=>({...r,plaka:e.target.value.toUpperCase()}))} className="border rounded-lg px-2 py-1 uppercase"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600">Firma</label>
+                      <input value={editRow.firma||""} onChange={e=>setEditRow(r=>({...r,firma:e.target.value,firma_id:e.target.value}))} className="border rounded-lg px-2 py-1"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600">Kira Başlangıç</label>
+                      <input value={editRow.kira_baslangic||""} onChange={e=>setEditRow(r=>({...r,kira_baslangic:e.target.value}))} className="border rounded-lg px-2 py-1" placeholder="gg.aa.yy"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600">Kira Bitiş</label>
+                      <input value={editRow.kira_bitis||""} onChange={e=>setEditRow(r=>({...r,kira_bitis:e.target.value}))} className="border rounded-lg px-2 py-1" placeholder="gg.aa.yy"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600">Yıllık KM Hakkı</label>
+                      <input value={editRow.yillik_km_hakki??""} onChange={e=>setEditRow(r=>({...r,yillik_km_hakki:e.target.value}))} className="border rounded-lg px-2 py-1" placeholder="Boş bırak = sınırsız"/>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-600">Notlar</label>
+                      <input value={editRow.notlar||""} onChange={e=>setEditRow(r=>({...r,notlar:e.target.value}))} className="border rounded-lg px-2 py-1"/>
+                    </div>
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-600">Lastik Ebatı (Araç)</label>
+                      <select value={editRow.arac_ebat||""} onChange={e=>setEditRow(r=>({...r,arac_ebat:e.target.value}))} className="w-full border rounded-lg px-2 py-1">
+                        <option value="">— Seçin —</option>
+                        <option>135/80 R13</option><option>145/70 R13</option><option>145/80 R13</option>
+                        <option>155/65 R13</option><option>155/70 R13</option><option>155/80 R13</option>
+                        <option>165/60 R13</option><option>165/65 R13</option><option>165/70 R13</option>
+                        <option>175/60 R13</option><option>175/65 R13</option><option>175/70 R13</option>
+                        <option>165/60 R14</option><option>165/65 R14</option><option>165/70 R14</option>
+                        <option>175/60 R14</option><option>175/65 R14</option><option>175/70 R14</option>
+                        <option>185/55 R14</option><option>185/60 R14</option><option>185/65 R14</option><option>185/70 R14</option>
+                        <option>195/60 R14</option><option>195/65 R14</option>
+                        <option>175/65 R15</option><option>185/55 R15</option><option>185/60 R15</option><option>185/65 R15</option>
+                        <option>195/50 R15</option><option>195/55 R15</option><option>195/60 R15</option><option>195/65 R15</option>
+                        <option>205/50 R15</option><option>205/55 R15</option><option>205/60 R15</option><option>205/65 R15</option>
+                        <option>195/45 R16</option><option>195/50 R16</option><option>195/55 R16</option>
+                        <option>205/45 R16</option><option>205/50 R16</option><option>205/55 R16</option>
+                        <option>205/60 R16</option><option>205/65 R16</option>
+                        <option>215/55 R16</option><option>215/60 R16</option><option>215/65 R16</option>
+                        <option>225/50 R16</option><option>225/55 R16</option>
+                        <option>205/45 R17</option><option>205/50 R17</option><option>205/55 R17</option>
+                        <option>215/45 R17</option><option>215/50 R17</option><option>215/55 R17</option><option>215/60 R17</option>
+                        <option>225/45 R17</option><option>225/50 R17</option><option>225/55 R17</option>
+                        <option>235/45 R17</option><option>235/55 R17</option>
+                        <option>215/40 R18</option><option>215/45 R18</option><option>225/40 R18</option><option>225/45 R18</option>
+                        <option>235/40 R18</option><option>235/45 R18</option><option>235/50 R18</option><option>235/55 R18</option>
+                        <option>245/40 R18</option><option>245/45 R18</option><option>255/45 R18</option>
+                        <option>225/35 R19</option><option>225/40 R19</option><option>235/35 R19</option><option>235/40 R19</option><option>235/45 R19</option>
+                        <option>245/40 R19</option><option>255/35 R19</option><option>255/40 R19</option><option>255/45 R19</option><option>275/35 R19</option>
+                        <option>235/35 R20</option><option>245/35 R20</option><option>245/40 R20</option><option>255/35 R20</option><option>255/40 R20</option>
+                        <option>265/40 R20</option><option>275/35 R20</option><option>275/40 R20</option>
+                        <option>245/35 R21</option><option>255/35 R21</option><option>265/40 R21</option><option>275/35 R21</option><option>285/35 R21</option>
+                        <option>275/35 R22</option><option>285/35 R22</option><option>295/35 R22</option>
+                        <option>185/75 R16C</option><option>195/65 R16C</option><option>195/70 R15C</option><option>195/75 R16C</option>
+                        <option>205/65 R16C</option><option>205/70 R15C</option><option>205/75 R16C</option><option>215/65 R16C</option><option>225/65 R16C</option>
+                        <option>215/60 R17</option><option>225/60 R17</option><option>235/60 R17</option>
+                        <option>225/65 R17</option><option>235/65 R17</option><option>245/65 R17</option>
+                        <option>235/55 R18</option><option>235/60 R18</option><option>255/55 R18</option>
+                        <option>235/55 R19</option><option>255/50 R19</option><option>255/45 R20</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex justify-end gap-2">
+                    <button onClick={()=>{setEditOpen(false); setEditRow(null);}} className="px-3 py-1.5 rounded-lg border">Vazgeç</button>
+                    <button onClick={saveEdit} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white">Kaydet</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
     }
 
-    function etiket(tur){
-      const cls = tur==='Hasar' ? 'hasar' : 'mekanik';
-      return `<span class="tag ${cls}">${tur}</span>`;
+    function App(){
+      const [firmalar,setFirmalar]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).firmalar||[]):[]}catch{return[]}});      
+      const [araclar,setAraclar]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).araclar||[]):[]}catch{return[]}});      
+      const [siparisler,setSiparisler]=useState(()=>{try{const s=localStorage.getItem(LS_KEY);return s?(JSON.parse(s).siparisler||[]):[]}catch{return[]}});
+
+      useEffect(()=>{ localStorage.setItem(LS_KEY, JSON.stringify({firmalar,araclar,siparisler})) },[firmalar,araclar,siparisler]);
+
+      useEffect(()=>{
+        function syncFromLS(){
+          try{
+            const cur = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+            Array.isArray(cur.firmalar) && setFirmalar(cur.firmalar);
+            Array.isArray(cur.araclar)  && setAraclar(cur.araclar);
+            Array.isArray(cur.siparisler)&& setSiparisler(cur.siparisler);
+          }catch{}
+        }
+        window.addEventListener('orders-updated', syncFromLS);
+        return ()=>window.removeEventListener('orders-updated', syncFromLS);
+      },[]);
+
+      const [sEbat,setSEbat]=useState("");
+      const [sPlaka,setSPlaka]=useState("");
+      const [sAracKm,setSAracKm]=useState("");
+      const [sFirma,setSFirma]=useState("");
+      const [sTur,setSTur]=useState("Yaz");
+      const [sAdSoyad,setSAdSoyad]=useState("");
+      const [sIl,setSIl]=useState("");
+      const [sIlce,setSIlce]=useState("");
+      const [sIrtibat,setSIrtibat]=useState("");
+      const [sEmail,setSEmail]=useState("");
+
+      const [sorguPlaka,setSorguPlaka]=useState("");
+
+      const [firmaId,setFirmaId]=useState(""),[baslangic,setBaslangic]=useState(""),[bitis,setBitis]=useState(""),[yillikKm,setYillikKm]=useState(""),[sinirsiz,setSinirsiz]=useState(false);
+
+      const fileRef=useRef(null), xlsxRef=useRef(null), siparisXlsxRef=useRef(null);
+
+      const [userInfo,setUserInfo]=useState({email:"",name:""});
+
+      const firmaMap = useMemo(()=> new Map(firmalar.map(f=>[f.id,f.ad])), [firmalar]);
+      const seciliArac = useMemo(()=>{
+        const p=(sorguPlaka||"").trim().toUpperCase();
+        return araclar.find(a=>a.plaka===p)||null;
+      },[sorguPlaka,araclar]);
+
+      function siparisEkle(e){
+        e.preventDefault();
+        const p=(sPlaka||"").trim().toUpperCase();
+        const ebat=(sEbat||"").trim();
+        const kmRaw=(sAracKm||"").toString().trim();
+        const km=Number.parseInt(kmRaw.replace(/\D/g,''))||0;
+        const firma=(sFirma||"").trim();
+        const tur=(sTur||"Yaz");
+        if(!ebat) return alert("Ebat seçin");
+        if(!p) return alert("Plaka girin");
+        if(!firma) return alert("Firma girin");
+        const id=Date.now().toString();
+        const row={id,tarih:today(),plaka:p.toUpperCase(),ebat,arac_km:km,firma:(firma||"").toUpperCase(),tur:(tur||"").toUpperCase(),ad_soyad:(sAdSoyad||"").toUpperCase(),il:(sIl||"").toUpperCase(),ilce:(sIlce||"").toUpperCase(),irtibat_no:sIrtibat,email:window.emailNormalize(sEmail),createdBy:userInfo.email||"",createdByName:userInfo.name||""};
+        setSiparisler(prev=>[row,...prev]);
+        setSorguPlaka(p);
+        setSEbat(""); setSPlaka(""); setSAracKm(""); setSFirma(""); setSTur("Yaz");
+        setSAdSoyad(""); setSIl(""); setSIlce(""); setSIrtibat(""); setSEmail("");
+        try{ window.pushOrder && window.pushOrder(row); }catch{}
+      }
+      function siparisSil(id){ if(!confirm("Silinsin mi?")) return; setSiparisler(prev=>prev.filter(s=>s.id!==id)); try{ window.deleteOrderById && window.deleteOrderById(id); }catch{} }
+
+      function exportCSV(){
+        const hdr=["plaka","firma","kira_baslangic","kira_bitis","yillik_km_hakki","arac_ebat","notlar"];
+        const rows=[hdr.join(",")];
+        for(const a of araclar){
+          rows.push([csvSafe(a.plaka),csvSafe(a.firma),csvSafe(a.kira_baslangic),csvSafe(a.kira_bitis),csvSafe(a.yillik_km_hakki==null?"":a.yillik_km_hakki),csvSafe(a.arac_ebat||""),csvSafe((a.notlar||"").replaceAll(",",";"))].join(","));
+        }
+        download("araclar.csv",rows.join("\n"));
+      }
+      function exportJSON(){ download("veri.json", JSON.stringify({firmalar,araclar,siparisler},null,2)); }
+      function importJSON(ev){
+        const f=ev.target.files?.[0]; if(!f) return;
+        const fr=new FileReader(); fr.onload=()=>{ try{
+          const d=JSON.parse(String(fr.result||"{}"));
+          if(Array.isArray(d.firmalar)) setFirmalar(d.firmalar);
+          if(Array.isArray(d.araclar)) setAraclar(d.araclar);
+          if(Array.isArray(d.siparisler)) setSiparisler(d.siparisler);
+        }catch(e){ alert("JSON okunamadı: "+e.message) } finally{ ev.target.value=""; } }; fr.readAsText(f,"utf-8");
+      }
+      function importXLSX(ev){
+  const f=ev.target.files?.[0]; if(!f) return;
+  const fr=new FileReader(); fr.onload=()=>{ try{
+    const wb=XLSX.read(new Uint8Array(fr.result),{type:"array"});
+    const wsA=wb.Sheets["Araclar"]||wb.Sheets["araclar"]; let yeniA=[];
+    if(wsA){
+      yeniA=XLSX.utils.sheet_to_json(wsA,{defval:""}).map(r=>{
+        const yk=String(r.yillik_km_hakki??"").trim();
+        const ykVal = yk==="" ? null : (Number.isFinite(Number(yk))?Math.floor(Number(yk)):null);
+        return {
+          plaka:String(r.plaka||"").trim().toUpperCase(),
+          firma:String(r.ad||r.firma||"").trim(),
+          kira_baslangic:normExcelDate(r.kira_baslangic),
+          kira_bitis:normExcelDate(r.kira_bitis),
+          yillik_km_hakki: ykVal,
+          arac_ebat:String(r.arac_ebat||r.ebat||"").trim(),
+          notlar:String(r.notlar||"").trim()
+        };
+      }).filter(a=>a.plaka&&a.firma&&a.kira_baslangic&&a.kira_bitis);
+    }
+    if(yeniA.length){ const m=new Map(araclar.map(a=>[a.plaka,a])); yeniA.forEach(a=>m.set(a.plaka,a)); setAraclar([...m.values()].sort((a,b)=>a.plaka.localeCompare(b.plaka))); }
+    if(!yeniA.length) alert("Excel'de 'Araclar' sayfası bulunamadı veya kolonlar boş.");
+  }catch(e){ alert("Excel okunamadı: "+e.message) } finally{ ev.target.value=""; } }; fr.readAsArrayBuffer(f);
+}
+function importSiparisXLSX(ev){
+        const f=ev.target.files?.[0]; if(!f) return;
+        const fr=new FileReader(); fr.onload=()=>{ try{
+          const wb=XLSX.read(new Uint8Array(fr.result),{type:"array"});
+          const wsS=wb.Sheets["Siparisler"]||wb.Sheets["SİPARİŞLER"]||wb.Sheets["siparisler"];
+          if(!wsS){ alert("Excel'de 'Siparisler' sayfası bulunamadı."); return; }
+          const raw = XLSX.utils.sheet_to_json(wsS,{defval:""});
+          let ok=0, fail=0;
+          const normalizeTur = (v)=>{ const n=String(v||"").trim().toLowerCase().normalize('NFC').replace(/ı/g,'i'); return n.startsWith("k") ? "KIŞ" : "YAZ"; };
+          const toInt=(v)=>{ try{ const n=Number.parseInt(String(v).replace(/\D/g,'')); return Number.isFinite(n)?n:0; }catch{ return 0; } };
+          for(const r of raw){
+            try{
+              const row={ tarih:normExcelDate(r["Tarih"]), plaka:String(r["Plaka"]||"").trim().toUpperCase(), ebat:String(r["Ebat"]||"").trim(),
+                          arac_km:toInt(r["Araç KM"]), firma:String(r["Firma"]||"").trim().toUpperCase(), tur:normalizeTur(r["Tür"]),
+                          ad_soyad:String(r["İsim Soyisim"]||"").trim().toUpperCase(), il:String(r["İl"]||"").trim().toUpperCase(),
+                          ilce:String(r["İlçe"]||"").trim(), irtibat_no:String(r["İrtibat"]||"").trim(),
+                          email: window.emailNormalize ? window.emailNormalize(r["E-posta"]||"") : String(r["E-posta"]||"").trim() };
+              if(!row.tarih || !row.plaka || !row.ebat){ fail++; continue; }
+              window.pushOrder && window.pushOrder(row); ok++;
+            }catch{ fail++; }
+          }
+          alert(`Yükleme tamamlandı. Başarılı: ${ok}, Hatalı: ${fail}`);
+        }catch(e){ alert("Excel okunamadı: "+e.message) } finally{ ev.target.value=""; } };
+        fr.readAsArrayBuffer(f);
+      }
+
+      const [sfBas,setSfBas]=useState(""),[sfBit,setSfBit]=useState(""),[sfPlaka,setSfPlaka]=useState(""),[sfFirma,setSfFirma]=useState(""),[sfTur,setSfTur]=useState(""),[sfEbat,setSfEbat]=useState("");
+      const filtered = useMemo(()=>{
+        const s=toDate(sfBas), e=toDate(sfBit); const N=x=>String(x||"").toUpperCase();
+        const fPl=N(sfPlaka), fFi=N(sfFirma), fEb=N(sfEbat), fT=N(sfTur);
+        return siparisler.filter(x=>{
+          const d=toDate(x.tarih); if(!d) return false;
+          if(s&&d<s) return false; if(e&&d>e) return false;
+          if(fPl && !N(x.plaka).includes(fPl)) return false;
+          if(fFi && !N(x.firma||"").includes(fFi)) return false;
+          if(fT && N(x.tur)!==fT) return false;
+          if(fEb && !N(x.ebat).includes(fEb)) return false;
+          return true;
+        });
+      },[siparisler,sfBas,sfBit,sfPlaka,sfFirma,sfTur,sfEbat]);
+
+      const pageSize = 50;
+      const [page, setPage] = useState(1);
+      const pageCount = useMemo(()=> Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length]);
+      useEffect(()=>{ setPage(1); }, [sfBas,sfBit,sfPlaka,sfFirma,sfTur,sfEbat,siparisler]);
+      const pageRows = useMemo(()=>{ const start = (page-1)*pageSize; return filtered.slice(start, start + pageSize); },[filtered,page]);
+
+      const siparisOzet = useMemo(()=>{
+        const p=(sorguPlaka||"").trim().toUpperCase(); let yaz=0,kis=0;
+        if(!p) return {yaz,kis};
+        for(const s of siparisler){ if(String(s.plaka).toUpperCase()===p){ normalizeTR(s.tur||'Yaz')==='kis' ? kis++ : yaz++; } }
+        return {yaz,kis};
+      },[sorguPlaka,siparisler]);
+
+      const [editOpen,setEditOpen]=useState(false);
+      const [editRow,setEditRow]=useState(null);
+      function openEdit(row){ setEditRow({...row}); setEditOpen(true); }
+      function closeEdit(){ setEditOpen(false); setEditRow(null); }
+      async function saveEdit(){
+        if(!editRow?.id) return;
+        const patch = {
+          tarih: editRow.tarih, plaka: String(editRow.plaka||"").toUpperCase(), ebat: String(editRow.ebat||""),
+          arac_km: Number.parseInt(editRow.arac_km||0)||0, firma: String(editRow.firma||"").toUpperCase(),
+          tur: String(editRow.tur||"").toUpperCase(), ad_soyad: String(editRow.ad_soyad||"").toUpperCase(),
+          il: String(editRow.il||"").toUpperCase(), ilce: String(editRow.ilce||""), irtibat_no: String(editRow.irtibat_no||""),
+          email: window.emailNormalize ? window.emailNormalize(editRow.email||"") : (editRow.email||"")
+        };
+        try{ window.updateOrderById && await window.updateOrderById(editRow.id, patch);
+             setSiparisler(prev=>prev.map(x=>x.id===editRow.id?{...x,...patch}:x)); closeEdit(); }
+        catch(e){ alert("Güncellenemedi: "+(e.message||e)); }
+      }
+
+      const [showAracPanel, setShowAracPanel] = useState(false);
+      function aracSil(plaka){ if(!confirm("Bu aracı silmek istiyor musunuz?")) return; setAraclar(prev => prev.filter(a => a.plaka !== plaka)); }
+      
+function aracKaydet(originalPlaka, data){
+  const yeni = {
+    plaka: String(data.plaka||"").trim().toUpperCase(),
+    firma: String(data.firma || data.firma_id || "").trim(),
+    kira_baslangic: normExcelDate(data.kira_baslangic),
+    kira_bitis: normExcelDate(data.kira_bitis),
+    yillik_km_hakki: data.yillik_km_hakki==='' ? null : (Number.isFinite(Number(data.yillik_km_hakki)) ? Math.floor(Number(data.yillik_km_hakki)) : null),
+    arac_ebat: String(data.arac_ebat||"").trim(),
+    notlar: String(data.notlar||"").trim()
+  };
+  if(!yeni.plaka || !yeni.firma || !yeni.kira_baslangic || !yeni.kira_bitis){
+    alert("Plaka, firma, kira başlangıç ve kira bitiş zorunludur."); 
+    return false;
+  }
+  setAraclar(prev=>{ 
+    const m = new Map(prev.map(a=>[a.plaka,a])); 
+    if(originalPlaka && originalPlaka!==yeni.plaka) m.delete(originalPlaka); 
+    m.set(yeni.plaka, yeni); 
+    return [...m.values()].sort((a,b)=>a.plaka.localeCompare(b.plaka)); 
+  });
+  return true;
+}
+
+
+      return (
+        <div className="min-h-screen">
+          <header className="sticky top-0 z-10 bg-emerald-600 text-white">
+            <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+              <h1 className="text-2xl font-bold">SEKAR FİLO LASTİK HAK TAKİP</h1>
+              <div className="flex items-center gap-3">
+                {userInfo.email && (<div className="text-xs bg-white/15 px-3 py-1.5 rounded-xl">{userInfo.name||userInfo.email}</div>)}
+                <div className="flex gap-2">
+                  
+                  
+                  
+                  <input ref={xlsxRef} type="file" accept=".xlsx,.xls" onChange={importXLSX} className="hidden"/>
+                  <button onClick={()=>xlsxRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Excel İçe Al</button>
+                  <a href="./arac_import_ornek.xlsx" download className="px-3 py-1.5 rounded-lg border inline-flex items-center">Örnek Excel İndir</a>
+                <input ref={siparisXlsxRef} type="file" accept=".xlsx,.xls" onChange={importSiparisXLSX} className="hidden"/>
+                  <button onClick={()=>siparisXlsxRef.current?.click()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Excel’den Sipariş Yükle</button>
+                  <button onClick={()=>setShowAracPanel(true)} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Araç Bilgisi</button>
+                  <button onClick={()=>window.signOut && window.signOut()} className="px-3 py-1.5 rounded-xl border border-white text-white/90 hover:bg-white/10">Çıkış</button>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-7xl mx-auto p-4 grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+              <div className="bg-white rounded-2xl p-4 shadow h-full">
+                <h2 className="text-lg font-semibold mb-3">Lastik Siparişi</h2>
+                <form onSubmit={siparisEkle} className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Lastik Ebatı</label>
+                      <select value={sEbat} onChange={e=>setSEbat(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm">
+                        <option value="">— Seçin —</option>
+                        <option>135/80 R13</option><option>145/70 R13</option><option>145/80 R13</option>
+                        <option>155/65 R13</option><option>155/70 R13</option><option>155/80 R13</option>
+                        <option>165/60 R13</option><option>165/65 R13</option><option>165/70 R13</option>
+                        <option>175/60 R13</option><option>175/65 R13</option><option>175/70 R13</option>
+                        <option>165/60 R14</option><option>165/65 R14</option><option>165/70 R14</option>
+                        <option>175/60 R14</option><option>175/65 R14</option><option>175/70 R14</option>
+                        <option>185/55 R14</option><option>185/60 R14</option><option>185/65 R14</option><option>185/70 R14</option>
+                        <option>195/60 R14</option><option>195/65 R14</option>
+                        <option>175/65 R15</option><option>185/55 R15</option><option>185/60 R15</option><option>185/65 R15</option>
+                        <option>195/50 R15</option><option>195/55 R15</option><option>195/60 R15</option><option>195/65 R15</option>
+                        <option>205/50 R15</option><option>205/55 R15</option><option>205/60 R15</option><option>205/65 R15</option>
+                        <option>195/45 R16</option><option>195/50 R16</option><option>195/55 R16</option>
+                        <option>205/45 R16</option><option>205/50 R16</option><option>205/55 R16</option>
+                        <option>205/60 R16</option><option>205/65 R16</option>
+                        <option>215/55 R16</option><option>215/60 R16</option><option>215/65 R16</option>
+                        <option>225/50 R16</option><option>225/55 R16</option>
+                        <option>205/45 R17</option><option>205/50 R17</option><option>205/55 R17</option>
+                        <option>215/45 R17</option><option>215/50 R17</option><option>215/55 R17</option><option>215/60 R17</option>
+                        <option>225/45 R17</option><option>225/50 R17</option><option>225/55 R17</option>
+                        <option>235/45 R17</option><option>235/55 R17</option>
+                        <option>215/40 R18</option><option>215/45 R18</option><option>225/40 R18</option><option>225/45 R18</option>
+                        <option>235/40 R18</option><option>235/45 R18</option><option>235/50 R18</option><option>235/55 R18</option>
+                        <option>245/40 R18</option><option>245/45 R18</option><option>255/45 R18</option>
+                        <option>225/35 R19</option><option>225/40 R19</option><option>235/35 R19</option><option>235/40 R19</option><option>235/45 R19</option>
+                        <option>245/40 R19</option><option>255/35 R19</option><option>255/40 R19</option><option>255/45 R19</option><option>275/35 R19</option>
+                        <option>235/35 R20</option><option>245/35 R20</option><option>245/40 R20</option><option>255/35 R20</option><option>255/40 R20</option>
+                        <option>265/40 R20</option><option>275/35 R20</option><option>275/40 R20</option>
+                        <option>245/35 R21</option><option>255/35 R21</option><option>265/40 R21</option><option>275/35 R21</option><option>285/35 R21</option>
+                        <option>275/35 R22</option><option>285/35 R22</option><option>295/35 R22</option>
+                        <option>185/75 R16C</option><option>195/65 R16C</option><option>195/70 R15C</option><option>195/75 R16C</option>
+                        <option>205/65 R16C</option><option>205/70 R15C</option><option>205/75 R16C</option><option>215/65 R16C</option><option>225/65 R16C</option>
+                        <option>215/60 R17</option><option>225/60 R17</option><option>235/60 R17</option>
+                        <option>225/65 R17</option><option>235/65 R17</option><option>245/65 R17</option>
+                        <option>235/55 R18</option><option>235/60 R18</option><option>255/55 R18</option>
+                        <option>235/55 R19</option><option>255/50 R19</option><option>255/45 R20</option>
+                      </select>
+                    </div>
+                    <div><label className="block text-xs font-medium text-gray-600">Plaka</label><input value={sPlaka} onChange={e=>setSPlaka(e.target.value.toUpperCase())} placeholder="34ABC123" className="mt-1 w-full rounded-lg border px-2 py-1 uppercase tracking-wide"/></div>
+                    <div><label className="block text-xs font-medium text-gray-600">Araç KM</label><input value={sAracKm} onChange={e=>setSAracKm(e.target.value)} placeholder="Örn: 120000" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                    <div><label className="block text-xs font-medium text-gray-600">Lastik Firması</label><input value={sFirma} onChange={e=>setSFirma(e.target.value)} placeholder="Örn: LastikCo" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                    <div><label className="block text-xs font-medium text-gray-600">Tür</label><select value={sTur} onChange={e=>setSTur(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"><option>Yaz</option><option>Kış</option></select></div>
+                    <div><label className="block text-xs font-medium text-gray-600">İsim Soyisim</label><input value={sAdSoyad} onChange={e=>setSAdSoyad(e.target.value)} placeholder="Örn: Ali Veli" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                    <div><label className="block text-xs font-medium text-gray-600">İl</label>
+                      <select value={sIl} onChange={e=>setSIl(e.target.value)} className="mt-1 w-full rounded-lg border px-2 py-1 text-sm">
+                        <option value="">İl (Seçin)</option>{TR_ILLER.map((il,i)=>(<option key={i} value={il}>{il}</option>))}
+                      </select></div>
+                    <div><label className="block text-xs font-medium text-gray-600">İlçe</label><input value={sIlce} onChange={e=>setSIlce(e.target.value)} placeholder="İlçe" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                    <div><label className="block text-xs font-medium text-gray-600">İrtibat No</label><input value={sIrtibat} onChange={e=>setSIrtibat(e.target.value)} placeholder="5xx xxx xx xx" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                    <div><label className="block text-xs font-medium text-gray-600">E-posta</label><input type="email" value={sEmail} onChange={e=>setSEmail(e.target.value)} placeholder="ornek@mail.com" className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"/></div>
+                  </div>
+                  <div className="mt-2 md:col-span-2"><button className="w-full py-2 text-sm rounded-lg bg-emerald-600 text-white hover:opacity-95">Sipariş Ekle</button></div>
+                </form>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 shadow h-full">
+                <h2 className="text-lg font-semibold mb-3">Canlı Önizleme</h2>
+                <PreviewCard
+                  temp={{
+                    plaka:(sorguPlaka||"").toUpperCase(),
+                    firma_ad: (seciliArac ? (seciliArac.firma||"—") : (sFirma||"—")),
+                    kira_baslangic: seciliArac ? seciliArac.kira_baslangic : (baslangic || "—"),
+                    kira_bitis: seciliArac ? seciliArac.kira_bitis : (bitis || "—"),
+                    arac_ebat: (seciliArac && seciliArac.arac_ebat) ? seciliArac.arac_ebat : (sEbat || "—"),
+                    yillik_km: seciliArac ? (seciliArac.yillik_km_hakki===null?null:seciliArac.yillik_km_hakki) : (sinirsiz?null:(Number.parseInt(yillikKm)||0)),
+                    tahmini_km: (()=>{
+                      const s=seciliArac?seciliArac.kira_baslangic:baslangic, e=seciliArac?seciliArac.kira_bitis:bitis, y=seciliArac?seciliArac.yillik_km_hakki:(sinirsiz?null:(Number.parseInt(yillikKm)||0));
+                      return y===null?200000:Math.round(prorata(y,s||"",e||""));
+                    })(),
+                    kis_hakki:(seciliArac?1:(baslangic&&bitis?1:0)),
+                    yaz_hakki:(()=>{
+                      const s=seciliArac?seciliArac.kira_baslangic:baslangic, e=seciliArac?seciliArac.kira_bitis:bitis, y=seciliArac?seciliArac.yillik_km_hakki:(sinirsiz?null:(Number.parseInt(yillikKm)||0));
+                      const t=(y===null)?200000:Math.round(prorata(y,s||"",e||"")); return Math.floor(Math.max(0,t)/50000);
+                    })(),
+                  }}
+                  queryPlaka={sorguPlaka}
+                  onQueryChange={setSorguPlaka}
+                  orderCounts={siparisOzet}
+                />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-3 shadow">
+              <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                <h2 className="text-lg font-semibold">Siparişler</h2>
+                <div className="flex items-end gap-2 flex-wrap">
+                  <div><label className="block text-xs text-gray-500">Başlangıç</label><input value={sfBas} onChange={e=>setSfBas(e.target.value)} placeholder="01.01.25" className="border rounded-xl px-3 py-1.5"/></div>
+                  <div><label className="block text-xs text-gray-500">Bitiş</label><input value={sfBit} onChange={e=>setSfBit(e.target.value)} placeholder="31.12.25" className="border rounded-xl px-3 py-1.5"/></div>
+                  <div><label className="block text-xs text-gray-500">Plaka</label><input value={sfPlaka} onChange={e=>setSfPlaka(e.target.value)} placeholder="34ABC123" className="border rounded-xl px-3 py-1.5 uppercase"/></div>
+                  <div><label className="block text-xs text-gray-500">Lastik Firması</label><input value={sfFirma} onChange={e=>setSfFirma(e.target.value)} placeholder="Firma ara…" className="border rounded-xl px-3 py-1.5"/></div>
+                  <div><label className="block text-xs text-gray-500">Tür</label><select value={sfTur} onChange={e=>setSfTur(e.target.value)} className="border rounded-xl px-3 py-1.5"><option value="">Hepsi</option><option value="Yaz">Yaz</option><option value="Kış">Kış</option></select></div>
+                  <div>
+                    <label className="block text-xs text-gray-500">Ebat</label>
+                    {/* Otomatik e-posta doldurmasını engellemek için autocomplete kapalı */}
+                    <input value={sfEbat} onChange={e=>setSfEbat(e.target.value)} placeholder="205/55 R16" autoComplete="off" name="sfEbat" className="border rounded-xl px-3 py-1.5"/>
+                  </div>
+                  <button onClick={()=>{setSfBas("");setSfBit("");setSfPlaka("");setSfFirma("");setSfTur("");setSfEbat("");}} className="px-3 py-1.5 rounded-xl border shadow-sm">Filtreyi Temizle</button>
+                  <button onClick={()=>{
+                    const src = (Array.isArray(filtered) && filtered.length ? filtered : pageRows);
+                    const rows = src.map(s=>({Tarih:s.tarih,Plaka:s.plaka,Ebat:s.ebat,"Araç KM":Number.parseInt(s.arac_km||0)||0,Firma:(s.firma||""),Tür:s.tur,"İsim Soyisim":(s.ad_soyad||""),"İl":(s.il||""),"İlçe":(s.ilce||""),"İrtibat":(s.irtibat_no||""),"E-posta":window.emailNormalize(s.email||"")}));
+                    if(!rows.length) return alert("Filtreye uyan sipariş yok.");
+                    const ws=XLSX.utils.json_to_sheet(rows), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Siparisler"); XLSX.writeFile(wb,"siparisler.xlsx");
+                  }} className="px-3 py-1.5 rounded-xl border shadow-sm">Excel'e Aktar</button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mb-2 text-sm">
+                <div className="text-gray-600">
+                  Toplam <span className="font-semibold">{filtered.length.toLocaleString("tr-TR")}</span> kayıt •
+                  Sayfa <span className="font-semibold">{page}</span>/<span className="font-semibold">{pageCount}</span> •
+                  Sayfa başı <span className="font-semibold">50</span>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={()=>setPage(1)} disabled={page===1} className="px-2 py-1 border rounded disabled:opacity-40">İlk</button>
+                  <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="px-2 py-1 border rounded disabled:opacity-40">Önceki</button>
+                  <button onClick={()=>setPage(p=>Math.min(pageCount,p+1))} disabled={page===pageCount} className="px-2 py-1 border rounded disabled:opacity-40">Sonraki</button>
+                  <button onClick={()=>setPage(pageCount)} disabled={page===pageCount} className="px-2 py-1 border rounded disabled:opacity-40">Son</button>
+                </div>
+              </div>
+
+              {pageRows.length===0 ? <p className="text-sm text-gray-600">Henüz sipariş yok.</p> :
+                <div className="overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead><tr className="text-left border-b">
+                      <th className="py-2 pr-4">Tarih</th><th className="py-2 pr-4">Plaka</th><th className="py-2 pr-4">Ebat</th>
+                      <th className="py-2 pr-4">Araç KM</th><th className="py-2 pr-4">Firma</th><th className="py-2 pr-4">Tür</th><th className="py-2 pr-4">İsim Soyisim</th><th className="py-2 pr-4">İl</th><th className="py-2 pr-4">İlçe</th><th className="py-2 pr-4">İrtibat</th><th className="py-2 pr-4">E-posta</th><th className="py-2 pr-4">İşlem</th>
+                    </tr></thead>
+                    <tbody>
+                      {pageRows.map(s=>(
+                        <tr key={s.id} className="border-b last:border-0">
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.tarih}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap"><button className="underline" onClick={()=>setSorguPlaka(s.plaka)}>{s.plaka}</button></td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.ebat}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{(Number.parseInt(s.arac_km||0)||0).toLocaleString("tr-TR")}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.firma||""}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.tur}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.ad_soyad||""}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.il||""}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.ilce||""}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{s.irtibat_no||""}</td>
+                          <td className="py-2 pr-4 whitespace-nowrap">{window.emailNormalize(s.email||"")}</td>
+                          <td className="py-2 pr-4">
+                            <div className="flex gap-2">
+                              <button onClick={()=>openEdit(s)} className="px-2 py-1 rounded-lg border hover:shadow">Düzenle</button>
+                              <button onClick={()=>siparisSil(s.id)} className="px-2 py-1 rounded-lg border hover:shadow">Sil</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>}
+            </div>
+          </main>
+
+          {showAracPanel && (
+            <AracPanel
+              araclar={araclar}
+              onClose={()=>setShowAracPanel(false)}
+              onImportXLSX={importXLSX}
+              onSil={aracSil}
+              onKaydet={aracKaydet}
+            />
+          )}
+
+          {editOpen && (
+            <div className="fixed inset-0 z-50 bg-black/30 overflow-y-auto flex items-center justify-center p-3">
+              <div className="bg-white rounded-2xl shadow-lg p-4 w-full max-w-3xl">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-lg font-semibold">Siparişi Düzenle</div>
+                  <button onClick={closeEdit} className="px-2 py-1 rounded-lg border">Kapat</button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                  <div><label className="block text-xs text-gray-600">Tarih</label><input value={editRow.tarih||""} onChange={e=>setEditRow(r=>({...r,tarih:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">Plaka</label><input value={editRow.plaka||""} onChange={e=>setEditRow(r=>({...r,plaka:e.target.value.toUpperCase()}))} className="border rounded-lg px-2 py-1 uppercase"/></div>
+                  <div><label className="block text-xs text-gray-600">Ebat</label><input value={editRow.ebat||""} onChange={e=>setEditRow(r=>({...r,ebat:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">Araç KM</label><input value={editRow.arac_km||""} onChange={e=>setEditRow(r=>({...r,arac_km:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">Firma</label><input value={editRow.firma||""} onChange={e=>setEditRow(r=>({...r,firma:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">Tür</label>
+                    <select value={editRow.tur||"YAZ"} onChange={e=>setEditRow(r=>({...r,tur:e.target.value}))} className="border rounded-lg px-2 py-1">
+                      <option>YAZ</option><option>KIŞ</option>
+                    </select></div>
+                  <div><label className="block text-xs text-gray-600">İsim Soyisim</label><input value={editRow.ad_soyad||""} onChange={e=>setEditRow(r=>({...r,ad_soyad:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">İl</label><input value={editRow.il||""} onChange={e=>setEditRow(r=>({...r,il:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">İlçe</label><input value={editRow.ilce||""} onChange={e=>setEditRow(r=>({...r,ilce:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div><label className="block text-xs text-gray-600">İrtibat</label><input value={editRow.irtibat_no||""} onChange={e=>setEditRow(r=>({...r,irtibat_no:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                  <div className="md:col-span-2"><label className="block text-xs text-gray-600">E-posta</label><input value={editRow.email||""} onChange={e=>setEditRow(r=>({...r,email:e.target.value}))} className="border rounded-lg px-2 py-1"/></div>
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button onClick={closeEdit} className="px-3 py-1.5 rounded-lg border">Vazgeç</button>
+                  <button onClick={saveEdit} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white">Kaydet</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
     }
 
-    function duzenle(k, idx){
-      const t = $('#tarih'); if(t) t.value = k.tarih || '';
-      const p = $('#plaka'); if(p) p.value = k.plaka || '';
-      const m = $('#model'); if(m) m.value = k.model || '';
-      const f = $('#firma'); if(f) f.value = k.firma || '';
-      const tu = $('#tur'); if(tu) tu.value = k.tur || 'Hasar';
-      const ik = $('#ikame'); if(ik) ik.value = k.ikame || 'Yok';
-      const s = $('#servis'); if(s) s.value = k.servis || '';
-      if(editIndex) editIndex.value = String(idx);
-      window.scrollTo({top:0, behavior:'smooth'});
+    function PreviewCard({temp, queryPlaka, onQueryChange, orderCounts}){
+      const valid = temp.kira_baslangic!=="—" && temp.kira_bitis!=="—" && temp.plaka;
+      return (
+        <div className="rounded-2xl border p-4 grid md:grid-cols-2 gap-4">
+          <div>
+            <div className="text-sm text-gray-500 mb-1">Önizleme</div>
+            <input value={queryPlaka} onChange={e=>onQueryChange(e.target.value.toUpperCase())} placeholder="PLAKA YAZIN (örn: 34ABC123)" className="w-full bg-transparent outline-none font-semibold text-xl uppercase tracking-wide border-b border-dashed focus:border-gray-400"/>
+            <div className="text-sm mt-1">{temp.firma_ad}</div>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div><div className="text-gray-500">Başlangıç</div><div className="font-medium">{temp.kira_baslangic}</div></div>
+              <div><div className="text-gray-500">Bitiş</div><div className="font-medium">{temp.kira_bitis}</div></div>
+
+              {/* İSTEK: Ebat satırında Tahmini Dönem KM gösteriliyor */}
+              
+
+              <div><div className="text-gray-500">Yıllık KM</div><div className="font-medium">{temp.yillik_km==null?"Sınırsız":Number(temp.yillik_km).toLocaleString("tr-TR")}</div></div>
+<div>
+  <div className="text-gray-500">Tahmini Dönem KM</div>
+  <div className="font-medium">{Number(temp.tahmini_km||0).toLocaleString("tr-TR")}</div>
+</div>
+<div>
+  <div className="text-gray-500">Yaz Lastiği Hakkı</div>
+  <div className="font-medium">{valid ? temp.yaz_hakki : 0}</div>
+</div>
+<div>
+  <div className="text-gray-500">Ebat</div>
+  <div className="font-medium">{temp.arac_ebat||"—"}</div>
+</div>
+
+
+              {/* İSTEK: Tahmini Dönem KM satırında Yaz Lastiği Hakkı gösteriliyor */}
+              
+
+              <div><div className="text-gray-500">Kış Lastiği Hakkı</div><div className="font-medium">{valid?temp.kis_hakki:0}</div></div>
+
+              {/* İSTEK: Yaz Lastiği Hakkı satırında Ebat (arac_ebat) gösteriliyor */}
+              
+            </div>
+          </div>
+          <div className="self-center">
+            <div className="mt-0 p-3 bg-amber-50 rounded-xl border border-amber-200 text-sm">
+              <div className="font-semibold mb-1">Bu plaka için verilen siparişler</div>
+              <div className="flex gap-6"><div>Kış: <span className="font-semibold">{orderCounts.kis}</span></div><div>Yaz: <span className="font-semibold">{orderCounts.yaz}</span></div></div>
+            </div>
+          </div>
+        </div>
+      );
     }
 
-    function sil(idx){
-      // Onay penceresi bazı ortamlarda engellenebildiği için direkt uygula
-      if(!kayitlar[idx]) return;
-      kayitlar.splice(idx,1); yaz(kayitlar); ciz();
-    }
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
-    function teslim(idx){
-      if(!kayitlar[idx]) return;
-      if((kayitlar[idx].durum||'Aktif')==='Pasif') return;
-      // Onay penceresi bazı ortamlarda engellenebildiği için direkt uygula
-      kayitlar[idx].durum = 'Pasif'; yaz(kayitlar); ciz();
-    }
-
-    function aktifEt(idx){
-      if(!kayitlar[idx]) return;
-      if((kayitlar[idx].durum||'Aktif')==='Aktif') return;
-      if(!confirm('Kayıt tekrar Aktif yapılsın mı?')) return;
-      kayitlar[idx].durum = 'Aktif'; yaz(kayitlar); ciz();
-    }
-
-    // İlk çizim
-    ciz();
-
-    // Tek yerden tıklama yakalayıcı (event delegation)
-    const tbodyEl = $('#listeGovde');
-    if(tbodyEl){
-      tbodyEl.addEventListener('click', (ev)=>{
-        const btn = ev.target.closest('button[data-act]'); if(!btn) return;
-        const tr = btn.closest('tr'); const idx = Number(tr?.dataset.i);
-        if(Number.isNaN(idx)) return;
-        const act = btn.getAttribute('data-act');
-        if(act==='edit') duzenle(kayitlar[idx], idx);
-        else if(act==='sil') sil(idx);
-        else if(act==='done') teslim(idx);
-        else if(act==='activate') aktifEt(idx);
-      });
-    }
-
-    // --- İSTEĞE BAĞLI: Gerçek zamanlı ortak kullanım (Firebase) ---
-    const REALTIME_ACTIVE = true; // true yapıldığında aşağıdaki kod çalışır
-    const FIREBASE_CONFIG = {
+  <script>
+  (function(){
+    const LS_KEY = "lastik_takip_v1";
+    const COLL   = "lastik_siparisleri";
+    const firebaseConfig = {
       apiKey: "AIzaSyB-xEmeTVN8oiB4FZzV4UpJpAHkyDHYF4U",
       authDomain: "sekar-filo.firebaseapp.com",
       projectId: "sekar-filo",
       storageBucket: "sekar-filo.appspot.com",
       messagingSenderId: "61274893830",
-      appId: "1:61274893830:web:c9dfdf8baf0500178f9d87",
-      // RTDB url tahmini: varsayılan ana bölge
-      databaseURL: "https://sekar-filo-default-rtdb.firebaseio.com"
+      appId: "1:61274893830:web:c9dfdf8baf0500178f9d87"
     };
-    const DB_PATH = '/sekar/servis-kayitlari';
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
+    const ORD  = db.collection(COLL);
+    const USERS = db.collection("users");
 
-    async function enableRealtime(){
-      if(!REALTIME_ACTIVE) return;
-      const [appMod, dbMod, authMod] = await Promise.all([
-        import('https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js'),
-        import('https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js'),
-        import('https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js'),
-      ]);
-      const { initializeApp } = appMod;
-      const { getDatabase, ref, onValue, set } = dbMod;
-      const { getAuth, signInAnonymously, onAuthStateChanged } = authMod;
+    const ov = document.createElement('div');
+    ov.style.cssText="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.08);backdrop-filter:blur(2px);z-index:99999";
+    ov.innerHTML = '<div style="background:#fff;padding:18px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);width:340px;font-family:system-ui">'+
+      '<h3 style="margin:0 0 8px;font-size:18px">Giriş Yap</h3>'+
+      '<input id="__m" type="email" placeholder="kisi@sekarfilo.com.tr" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin:6px 0">'+
+      '<input id="__p" type="password" placeholder="Şifre" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin:6px 0">'+
+      '<input id="__n" type="text" placeholder="Kullanıcı Adı (ilk kayıt için)" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin:6px 0">'+
+      '<button id="__l" style="width:100%;padding:10px;border:0;border-radius:8px;background:#0ea675;color:#fff">Giriş</button>'+
+      '<button id="__s" style="width:100%;padding:10px;border:0;border-radius:8px;background:#334155;color:#fff;margin-top:6px">Hesap Oluştur</button>'+
+      '<div id="__e" style="color:#d92d20;font-size:12px;min-height:16px;margin-top:6px"></div>'+
+      '<div style="font-size:12px;color:#64748b;margin-top:4px">* Sadece @sekarfilo.com.tr kabul edilir.</div>'+
+    '</div>';
+    document.addEventListener('DOMContentLoaded',()=>document.body.appendChild(ov));
+    function showLogin(show){ ov.style.display = show?'flex':'none'; }
+    function err(t){ const el=document.getElementById('__e'); if(el) el.textContent=t||''; }
 
-      const app = initializeApp(FIREBASE_CONFIG);
-      const auth = getAuth(app);
-      try { await signInAnonymously(auth); } catch(e){ console.warn('Anon auth başarısız (devam ediliyor):', e?.message||e); }
-
-      const db = getDatabase(app, FIREBASE_CONFIG.databaseURL);
-      const pathRef = ref(db, DB_PATH);
-
-      // Bulut -> Yerel (okuma)
-      onValue(pathRef, (snap)=>{
-        const val = snap.val(); if(Array.isArray(val)) { kayitlar = val; yazLocal(kayitlar); ciz(); }
-      });
-
-      // Yerel -> Bulut yazımını sarmala
-      function yazBulut(d){ set(pathRef, d).catch(err=> console.error('Buluta yazılamadı:', err)); }
-      function yazLocal(d){ localStorage.setItem(LS_KEY, JSON.stringify(d)); }
-      // yaz fonksiyonunu override et: hem lokal hem bulut
-      yaz = function(d){ yazLocal(d); yazBulut(d); };
-
-      // İlk eşitleme (varsa yereli bas)
-      yazBulut(kayitlar);
-    }
-    enableRealtime();
-
-    // --- Otomatik Duman Testleri (mutfak) ---
-    (function runSmokeTests(){
+    async function createUserProfile(user, displayName){
       try{
-        console.group('%cSekar Filo — Smoke Tests','color:#0A7A42;font-weight:700');
-        console.assert(fmtPlaka('34    abc   123')==='34 ABC 123','fmtPlaka normalizasyonu başarısız');
-        const sample = [{tarih:'2025-10-28',plaka:'34 ABC 123',model:'Egea',firma:'Sekar',tur:'Hasar',ikame:'Yok',servis:'deneme'}];
-        const head = ['tarih','plaka','model','firma','tur','ikame','servis'];
-        const row = `"${sample[0].tarih}" , "${sample[0].plaka}" , "${sample[0].model}" , "${sample[0].firma}" , "${sample[0].tur}" , "${sample[0].ikame}" , "parça \"sensör\" bekliyor"`;
-        const csv = head.join(',')+"\n"+row;
-        const cols = head; const idx = (n)=> cols.indexOf(n);
-        const parts = row.match(/((?<!\\)\".*?(?<!\\)\"|[^,]+)/g)?.map(s=> s.replaceAll(/^\"|\"$/g,'').replaceAll('\\"','"')) || [];
-        console.assert(parts[idx('plaka')]==='34 ABC 123','CSV parse plaka hatası');
-        console.assert(parts[idx('servis')].includes('sensör'),'CSV kaçış karakter testi başarısız');
-        console.log('Smoke tests OK');
-        console.groupEnd();
-      }catch(e){ console.warn('Smoke tests uyarı:', e); }
+        if (displayName) { await user.updateProfile({ displayName }); }
+        await USERS.doc(user.uid).set({ uid:user.uid, email:user.email, displayName: displayName || user.displayName || "", createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      }catch(e){ console.warn("profile error:", e); }
+    }
+
+    document.addEventListener('click', function(e){
+      if(e.target && e.target.id==='__l'){
+        const m=document.getElementById('__m').value.trim();
+        const p=document.getElementById('__p').value;
+        if(!/@sekarfilo\.com\.tr$/i.test(m)) return err("Sadece @sekarfilo.com.tr");
+        auth.signInWithEmailAndPassword(m,p).catch(x=>err(x.message||String(x)));
+      }
+      if(e.target && e.target.id==='__s'){
+        const m=document.getElementById('__m').value.trim();
+        const p=document.getElementById('__p').value;
+        const n=document.getElementById('__n').value.trim();
+        if(!/@sekarfilo\.com\.tr$/i.test(m)) return err("Sadece @sekarfilo.com.tr");
+        if(!n) return err("Lütfen kullanıcı adı girin");
+        auth.createUserWithEmailAndPassword(m,p).then(cred => createUserProfile(cred.user, n)).catch(x=>err(x.message||String(x)));
+      }
+    }, true);
+
+    function h(x){
+      const s=[x.tarih,x.plaka,x.ebat,x.arac_km,x.firma,x.tur,(x.ad_soyad||''),(x.il||''),(x.ilce||''),(x.irtibat_no||''),(x.email||'')].join('|').toUpperCase();
+      let a=0; for(let i=0;i<s.length;i++){ a=((a<<5)-a)+s.charCodeAt(i); a|=0; } return a.toString(36);
+    }
+
+    function subscribeOrders(){
+      return ORD.orderBy("createdAt","desc").onSnapshot(snap=>{
+        const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+        const cur  = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+        const firmalar = Array.isArray(cur.firmalar)?cur.firmalar:[];
+        const araclar  = Array.isArray(cur.araclar)?cur.araclar:[];
+        const siparisler = rows.map(s=>({
+          id:s.id,
+          tarih:s.tarih || new Date().toLocaleDateString('tr-TR'),
+          plaka:String(s.plaka||'').toUpperCase(),
+          ebat:s.ebat||'',
+          arac_km:Number.parseInt(s.arac_km||s.km||0)||0,
+          firma:String(s.firma||'').toUpperCase(),
+          tur:String(s.tur||'').toUpperCase(),
+          ad_soyad:String(s.ad_soyad||'').toUpperCase(),
+          il:String(s.il||'').toUpperCase(),
+          ilce:s.ilce||'',
+          irtibat_no:s.irtibat_no||'',
+          email: window.emailNormalize ? window.emailNormalize(s.email||'') : (s.email||'')
+        }));
+        localStorage.setItem(LS_KEY, JSON.stringify({firmalar,araclar,siparisler}));
+        window.dispatchEvent(new Event('orders-updated'));
+      });
+    }
+
+    async function pushOrder(row){
+      const user = firebase.auth().currentUser; if(!user){ showLogin(true); return; }
+      const obj = { tarih:row.tarih, plaka:row.plaka, ebat:row.ebat, arac_km:Number.parseInt(row.arac_km||0)||0, firma:row.firma, tur:row.tur, ad_soyad:row.ad_soyad||'', il:row.il||'', ilce:row.ilce||'', irtibat_no:row.irtibat_no||'', email: window.emailNormalize ? window.emailNormalize(row.email||'') : (row.email||''), createdBy:user.email, createdByUid:user.uid, createdByName:user.displayName || (user.email ? user.email.split('@')[0] : ''), createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+      const key = h(obj); const ref = ORD.doc(key); const snap = await ref.get(); if(!snap.exists){ await ref.set({ ...obj, hash:key }, { merge:false }); }
+    }
+    async function deleteOrderById(id){ try{ await ORD.doc(id).delete(); }catch(e){ console.warn(e); } }
+    async function updateOrderById(id, patch){
+      try{
+        const safe=Object.assign({},patch); if (safe.email && window.emailNormalize) safe.email = window.emailNormalize(safe.email);
+        await ORD.doc(id).set({ ...safe, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge:true });
+      }catch(e){ console.warn(e); throw e; }
+    }
+
+    window.pushOrder = pushOrder;
+    window.deleteOrderById = deleteOrderById;
+    window.updateOrderById = updateOrderById;
+    window.signOut = () => firebase.auth().signOut().catch(()=>{});
+
+    let unsub=null;
+    firebase.auth().onAuthStateChanged(async user=>{
+      if(user && /@sekarfilo\.com\.tr$/i.test(user.email)){
+        showLogin(false);
+        if (unsub) unsub();
+        unsub = subscribeOrders();
+        try{ await USERS.doc(user.uid).set({email:user.email, displayName:user.displayName || user.email.split('@')[0], lastLogin: firebase.firestore.FieldValue.serverTimestamp()}, {merge:true}); }catch{}
+      }else{
+        showLogin(true);
+        if (unsub) { unsub(); unsub=null; }
+      }
+    });
+  })();
+  </script>
+
+  <script>
+    (function(){
+      try{
+        document.addEventListener('input', function(ev){
+          var el = ev.target;
+          if(!(el && el.tagName==='INPUT')) return;
+          var ph = (el.getAttribute('placeholder')||'').toLowerCase();
+          var name = (el.getAttribute('name')||'').toLowerCase();
+          if (ph.includes('ebat') || name.includes('ebat') || ph.includes('yaz lastiği hakkı') || ph.includes('yaz lastigi hakki')) {
+            var v = el.value || '';
+            if (v.indexOf('@') !== -1) { el.value=''; }
+          }
+        }, true);
+      }catch(e){}
     })();
   </script>
+
+
+<!-- örnek excel indir butonu -->
+<script>
+(function(){
+  function ensureButton(){
+    try{
+      var btns = Array.from(document.querySelectorAll('button'));
+      var excelBtn = btns.find(b => /excel\s*iç.?e\s*al/i.test(b.textContent||''));
+      if(!excelBtn) { setTimeout(ensureButton, 400); return; }
+
+      // Eğer daha önce eklenmişse tekrar ekleme
+      if (excelBtn.__sampleAdded) return;
+      excelBtn.__sampleAdded = true;
+
+      // Yeni buton
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Örnek Excel İndir';
+      btn.style.marginLeft = '8px';
+      btn.className = excelBtn.className || 'border rounded px-3 py-1.5';
+      btn.addEventListener('click', downloadSample);
+
+      excelBtn.parentNode.insertBefore(btn, excelBtn.nextSibling);
+    }catch(e){}
+  }
+  function downloadSample(){
+    // SheetJS (XLSX) kütüphanesi sayfada zaten var (export için kullanılıyor)
+    if (typeof XLSX === 'undefined'){ alert('XLSX kitaplığı yüklenemedi.'); return; }
+    var rows = [
+      { "Plaka":"34ABC123", "Firma":"TUB", "Kira Başlangıç":"12.09.25", "Kira Bitiş":"12.09.27", "Yıllık KM Hakkı":30000, "Ebat":"205/55 R16", "Notlar":"" },
+      { "Plaka":"06XYZ789", "Firma":"MOK", "Kira Başlangıç":"15.10.25", "Kira Bitiş":"15.10.27", "Yıllık KM Hakkı":30000, "Ebat":"195/65 R15", "Notlar":"Hatchback" },
+      { "Plaka":"35HNR404", "Firma":"EMS", "Kira Başlangıç":"01.11.25", "Kira Bitiş":"01.11.27", "Yıllık KM Hakkı":40000, "Ebat":"235/50 R19", "Notlar":"SUV" }
+    ];
+    var ws = XLSX.utils.json_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Araç Bilgisi");
+    XLSX.writeFile(wb, "ornek_arac_bilgisi.xlsx");
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureButton);
+  else ensureButton();
+})();
+</script>
+
+
+<!-- manual-ebat: DOM-only enhancer -->
+<script>
+(function(){
+  function normEbat(s){
+    s = String(s||'').trim().toUpperCase().replace(/\s+/g,' ');
+    var m = s.match(/^(\d{3})\/(\d{2})\s*R(\d{2})$/i);
+    if(!m) return null;
+    return m[1] + '/' + m[2] + ' R' + m[3];
+  }
+  function getExtra(){
+    try{ var v = localStorage.getItem('lf_extra_ebatlar'); var a = JSON.parse(v||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; }
+  }
+  function saveExtra(a){
+    try{ localStorage.setItem('lf_extra_ebatlar', JSON.stringify(a)); }catch(e){}
+  }
+  function ensureOption(sel, value){
+    if(!sel) return;
+    for(var i=0;i<sel.options.length;i++){
+      if(String(sel.options[i].text||'').trim().toUpperCase()===value.toUpperCase()) return;
+    }
+    var o = document.createElement('option'); o.text = value; o.value = value; sel.appendChild(o);
+  }
+  function findSiparisEbatSelect(){
+    var btns = Array.from(document.querySelectorAll('button')).filter(b=>/sipari[sş]\s*ekle/i.test(b.textContent||''));
+    if(btns.length){
+      var root = btns[0].closest('form,div,section,main,article') || document.body;
+      var sels = root.querySelectorAll('select');
+      var reSize = /^\s*\d{3}\/\d{2}\s*R\d{2}\s*$/i;
+      for(var i=0;i<sels.length;i++){
+        var sel = sels[i], hits=0;
+        for(var j=0;j<sel.options.length;j++){
+          if(reSize.test(sel.options[j].text)) { hits++; if(hits>5) return sel; }
+        }
+      }
+    }
+    var all = document.querySelectorAll('select'), reSize = /^\s*\d{3}\/\d{2}\s*R\d{2}\s*$/i;
+    for(var i=0;i<all.length;i++){
+      var sel = all[i], hits=0;
+      for(var j=0;j<sel.options.length;j++){
+        if(reSize.test(all[i].options[j].text)) { hits++; if(hits>20) return sel; }
+      }
+    }
+    return null;
+  }
+  function mountUI(){
+    var sel = findSiparisEbatSelect();
+    if(!sel){ setTimeout(mountUI, 300); return; }
+
+    var extras = getExtra();
+    if(extras.indexOf('235/50 R19')===-1) extras.push('235/50 R19');
+    extras.forEach(function(v){ ensureOption(sel, v); });
+
+    if(sel.__manualEbatMounted) return;
+    sel.__manualEbatMounted = true;
+
+    var wrap = document.createElement('div');
+    wrap.style.display = 'flex'; wrap.style.alignItems='center'; wrap.style.gap='8px'; wrap.style.marginTop='8px';
+
+    var inp = document.createElement('input');
+    inp.placeholder = 'örn. 235/50 R19';
+    inp.style.border='1px solid #d1d5db'; inp.style.borderRadius='6px'; inp.style.padding='6px 8px'; inp.style.fontSize='14px';
+    inp.style.width='200px';
+
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = 'Ebat Ekle';
+    btn.style.background='#059669'; btn.style.color='#fff'; btn.style.border='none'; btn.style.borderRadius='8px';
+    btn.style.padding='8px 12px'; btn.style.cursor='pointer';
+
+    btn.addEventListener('click', function(){
+      var v = normEbat(inp.value);
+      if(!v){ alert('Geçersiz ebat. Örn: 235/50 R19'); return; }
+      ensureOption(sel, v);
+      sel.value = v;
+      var ex = getExtra(); if(ex.indexOf(v)===-1){ ex.push(v); saveExtra(ex); }
+      inp.value='';
+    });
+
+    wrap.appendChild(inp); wrap.appendChild(btn);
+    sel.parentNode.insertBefore(wrap, sel.nextSibling);
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', mountUI);
+  else mountUI();
+})();
+</script>
+
 </body>
 </html>
